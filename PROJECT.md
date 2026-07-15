@@ -17,18 +17,17 @@ Source material lives in `../Old Program/`:
 - Database exports (`Database doco/`)
 - Sample costings (`.jma` files)
 
-## Current stage
+**Current stage**
 
-**Stage 1 — Local development foundation**
+**Stage 2 complete — Calculation engine**
 
-- FastAPI backend with SQLite
-- Database seeded from Excel exports
-- Basic frontend to verify API connectivity
-- Git + GitHub + CI build validation
+- Cones, Strakes, and Summary totals ported from VB6
+- Validated against legacy `.jma` sample files
+- API endpoints: `/api/calc/cone`, `/api/calc/strake`, `/api/calc/costing`
 
 ## Future stages
 
-1. Port calculation engine (Cones, Strakes, Summary, Dip chart)
+1. ~~Port calculation engine~~ (done)
 2. Costing workflow UI (Summary page first)
 3. `.jma` file import
 4. PDF reports

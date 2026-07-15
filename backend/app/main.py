@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import get_connection, init_db
+from .routers import calc
 
 
 @asynccontextmanager
@@ -18,6 +19,8 @@ app = FastAPI(
     description="KarBec redevelopment of JMA Tank Costing",
     lifespan=lifespan,
 )
+
+app.include_router(calc.router)
 
 app.add_middleware(
     CORSMiddleware,

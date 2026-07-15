@@ -2,9 +2,9 @@
 
 ## Stage 2 — Calculation engine
 
-- [ ] Port `Cones.bas` logic to Python with unit tests
-- [ ] Port `Strakes.bas` and `Summary.bas`
-- [ ] Parse sample `.jma` files for validation
+- [x] Port `Cones.bas` logic to Python with unit tests
+- [x] Port `Strakes.bas` and `Summary.bas`
+- [x] Parse sample `.jma` files for cone/strake/summary validation
 
 ## Stage 3 — Costing UI
 

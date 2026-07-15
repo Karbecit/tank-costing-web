@@ -9,14 +9,18 @@
 - [x] Dev UI showing sample data
 - [x] Health check endpoint
 - [x] CI build and test on push
+- [x] Cones calculation engine (conical, offset, slope)
+- [x] Strakes and Summary totals calculation
+- [x] `.jma` parser for cones, strakes, and summary fields
+- [x] POST `/api/calc/cone`, `/api/calc/strake`, `/api/calc/costing`
 
 ## Planned
 
 - [ ] Summary costing page
-- [ ] Cones / Strakes geometry and pricing
+- [ ] Cones and Strakes UI screens
 - [ ] Components picker
 - [ ] Labour and GST totals
-- [ ] `.jma` import/export
+- [ ] `.jma` full import/export
 - [ ] PDF reports (7 report types)
 - [ ] Dip chart
 - [ ] Cone cutout calculator (DrawingOffice)
