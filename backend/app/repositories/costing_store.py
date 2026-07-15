@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS customers (
 CREATE TABLE IF NOT EXISTS costings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
+    quote_ref TEXT,
     customer_id INTEGER REFERENCES customers(id),
     payload TEXT NOT NULL,
     created_at TEXT NOT NULL,
@@ -43,6 +44,9 @@ def utc_now() -> str:
 
 def init_extended_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_EXTENSIONS)
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(costings)").fetchall()}
+    if "quote_ref" not in cols:
+        conn.execute("ALTER TABLE costings ADD COLUMN quote_ref TEXT")
 
 
 def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
@@ -147,7 +151,7 @@ def list_costings(limit: int = 50, offset: int = 0) -> list[dict]:
     with get_connection() as conn:
         rows = conn.execute(
             """
-            SELECT c.id, c.title, c.customer_id, c.created_at, c.updated_at,
+            SELECT c.id, c.title, c.quote_ref, c.customer_id, c.created_at, c.updated_at,
                    cu.company_name AS customer_name
             FROM costings c
             LEFT JOIN customers cu ON cu.id = c.customer_id
@@ -182,6 +186,7 @@ def save_costing(
     payload: dict,
     customer_id: int | None = None,
     costing_id: int | None = None,
+    quote_ref: str | None = None,
 ) -> dict | None:
     now = utc_now()
     body = json.dumps(payload)
@@ -194,19 +199,22 @@ def save_costing(
                 return None
             conn.execute(
                 """
-                UPDATE costings SET title = ?, customer_id = ?, payload = ?, updated_at = ?
+                UPDATE costings
+                SET title = ?, quote_ref = ?, customer_id = ?, payload = ?, updated_at = ?
                 WHERE id = ?
                 """,
-                (title, customer_id, body, now, costing_id),
+                (title, quote_ref, customer_id, body, now, costing_id),
             )
             cid = costing_id
         else:
             cur = conn.execute(
                 """
-                INSERT INTO costings (title, customer_id, payload, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO costings (
+                    title, quote_ref, customer_id, payload, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (title, customer_id, body, now, now),
+                (title, quote_ref, customer_id, body, now, now),
             )
             cid = cur.lastrowid
         conn.commit()

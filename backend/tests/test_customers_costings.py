@@ -36,11 +36,12 @@ def test_costing_save_and_load():
     }
     r = client.post(
         "/api/costings",
-        json={"title": "Test tank", "payload": payload},
+        json={"title": "Test tank", "quote_ref": "Q-2026-001", "payload": payload},
     )
     assert r.status_code == 201
     data = r.json()
     assert data["title"] == "Test tank"
+    assert data["quote_ref"] == "Q-2026-001"
     assert data["payload"]["summary"]["diam"] == 1200
     costing_id = data["id"]
 

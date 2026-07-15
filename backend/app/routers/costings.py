@@ -21,12 +21,20 @@ def get_costing(costing_id: int):
 
 @router.post("", response_model=CostingDetail, status_code=201)
 def create_costing(body: CostingSaveRequest):
-    return store.save_costing(body.title, body.payload, body.customer_id)
+    return store.save_costing(
+        body.title, body.payload, body.customer_id, quote_ref=body.quote_ref
+    )
 
 
 @router.put("/{costing_id}", response_model=CostingDetail)
 def update_costing(costing_id: int, body: CostingSaveRequest):
-    row = store.save_costing(body.title, body.payload, body.customer_id, costing_id=costing_id)
+    row = store.save_costing(
+        body.title,
+        body.payload,
+        body.customer_id,
+        costing_id=costing_id,
+        quote_ref=body.quote_ref,
+    )
     if row is None:
         raise HTTPException(status_code=404, detail="Costing not found")
     return row

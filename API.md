@@ -106,6 +106,7 @@ Save a new costing. Body:
 ```json
 {
   "title": "Pettavel 5KL",
+  "quote_ref": "Q-2026-042",
   "customer_id": 1,
   "payload": { "version": 1, "summary": {}, "cones": [], "strakes": [] }
 }

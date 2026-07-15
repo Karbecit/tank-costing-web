@@ -50,6 +50,7 @@ export function defaultCosting() {
   return {
     version: 1,
     title: "Untitled costing",
+    quote_ref: "",
     customer_id: null,
     costing_id: null,
     cones_rate_per_hour: 55,

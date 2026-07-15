@@ -35,6 +35,27 @@ export async function createCustomer(data) {
   return response.json();
 }
 
+export async function getCustomer(id) {
+  const response = await fetch(`/api/customers/${id}`);
+  if (!response.ok) throw new Error("Customer not found");
+  return response.json();
+}
+
+export async function updateCustomer(id, data) {
+  const response = await fetch(`/api/customers/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error("Failed to update customer");
+  return response.json();
+}
+
+export async function deleteCustomer(id) {
+  const response = await fetch(`/api/customers/${id}`, { method: "DELETE" });
+  if (!response.ok) throw new Error("Failed to delete customer");
+}
+
 export async function listCostings() {
   const response = await fetch("/api/costings?limit=100");
   if (!response.ok) throw new Error("Failed to load costings");

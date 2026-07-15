@@ -17,16 +17,14 @@
 - [x] Server save/load costings with customer linking
 - [x] Customer CRUD API (fresh records, no legacy migration)
 - [x] Components picker from stock database
+- [x] Customers tab with full edit form
+- [x] Quote / job reference on costings
+- [x] Customer search on Summary
 
 ## Planned
 
-### Costing workflow (Stage 3 remainder)
-- [ ] Full customer form in UI (contact, addresses)
-- [ ] Quote number / job reference on costing
-
-### Customer details (Stage 4)
-- [ ] Extended customer records in UI
-- [ ] Customer search on Summary screen
+### Costing workflow
+- [ ] Link to legacy quote number table (optional)
 
 ### Users, security & admin (Stage 5)
 - [ ] Login, roles (admin / editor / read-only)

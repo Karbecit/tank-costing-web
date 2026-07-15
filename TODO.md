@@ -19,9 +19,9 @@
 
 - [x] Fresh customer CRUD (no legacy ClientDetails migration)
 - [x] Company name via UI (+ New customer on Summary)
-- [ ] Full customer form (contact, addresses, notes)
-- [ ] Optional quote number / job reference on costing
-- [ ] Customer search on Summary screen
+- [x] Full customer form (contact, addresses, notes)
+- [x] Optional quote number / job reference on costing
+- [x] Customer search on Summary screen
 - [x] Attach customer to saved costing
 
 ## Stage 5 — Users, security & admin

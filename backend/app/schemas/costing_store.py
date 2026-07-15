@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 class CostingSaveRequest(BaseModel):
     title: str = Field(..., min_length=1)
+    quote_ref: str | None = None
     customer_id: int | None = None
     payload: dict[str, Any]
 
@@ -12,6 +13,7 @@ class CostingSaveRequest(BaseModel):
 class CostingListItem(BaseModel):
     id: int
     title: str
+    quote_ref: str | None = None
     customer_id: int | None = None
     customer_name: str | None = None
     created_at: str

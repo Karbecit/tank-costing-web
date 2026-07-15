@@ -1,13 +1,21 @@
 import {
   calculateCosting,
   createCustomer,
+  deleteCustomer,
   fetchHealth,
   getCosting,
+  getCustomer,
   listCostings,
   listCustomers,
   saveCosting,
   searchStock,
+  updateCustomer,
 } from "./api.js";
+import {
+  bindCustomersTab,
+  emptyCustomerForm,
+  renderCustomersTab,
+} from "./customers.js";
 import {
   NUM_CONES,
   NUM_STRAKES,
@@ -42,6 +50,9 @@ let customers = [];
 let savedCostings = [];
 let stockItems = [];
 let stockFilter = "";
+let customerSearch = "";
+let customerTabSearch = "";
+let customerForm = null;
 
 function syncComponentsPrice() {
   if (!state.selected_components?.length) return;
@@ -129,8 +140,19 @@ function bind(root) {
   root.querySelector("#btn-save-server")?.addEventListener("click", saveToServer);
   root.querySelector("#btn-load")?.addEventListener("click", () => root.querySelector("#file-load")?.click());
   root.querySelector("#btn-load-server")?.addEventListener("change", loadFromServer);
-  root.querySelector("#btn-refresh-saved")?.addEventListener("click", refreshSavedList);
-  root.querySelector("#btn-add-customer")?.addEventListener("click", quickAddCustomer);
+  root.querySelector("#btn-refresh-saved")?.addEventListener("click", async () => {
+    await refreshSavedList();
+    render();
+  });
+  root.querySelector("#btn-add-customer")?.addEventListener("click", () => {
+    customerForm = { isNew: true, data: emptyCustomerForm() };
+    activeTab = "customers";
+    render();
+  });
+  root.querySelector("#btn-cust-summary-search")?.addEventListener("click", searchSummaryCustomers);
+  root.querySelector("#summary-cust-search")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") searchSummaryCustomers();
+  });
   root.querySelector("#btn-search-stock")?.addEventListener("click", loadStock);
   root.querySelector("#stock-filter")?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") loadStock();
@@ -148,6 +170,66 @@ function bind(root) {
   bindCones(root);
   bindStrakes(root);
   bindComponents(root);
+  if (activeTab === "customers") {
+    bindCustomersTab(root, {
+      onNew: () => {
+        customerForm = { isNew: true, data: emptyCustomerForm() };
+        render();
+      },
+      onSearch: searchCustomersTab,
+      onSave: saveCustomerForm,
+      onCancel: () => {
+        customerForm = null;
+        render();
+      },
+      onEdit: async (id) => {
+        try {
+          const c = await getCustomer(id);
+          customerForm = {
+            isNew: false,
+            id,
+            data: {
+              company_name: c.company_name,
+              contact_name: c.contact_name || "",
+              email: c.email || "",
+              phone: c.phone || "",
+              billing_address: c.billing_address || "",
+              delivery_address: c.delivery_address || "",
+              town: c.town || "",
+              state: c.state || "",
+              postal_code: c.postal_code || "",
+              country: c.country || "Australia",
+              notes: c.notes || "",
+            },
+          };
+          render();
+        } catch (err) {
+          statusMessage = `Error: ${err.message}`;
+          render();
+        }
+      },
+      onDelete: async (id) => {
+        const c = customers.find((x) => x.id === id);
+        if (!confirm(`Delete customer "${c?.company_name || id}"?`)) return;
+        try {
+          await deleteCustomer(id);
+          if (state.customer_id === id) state.customer_id = null;
+          customers = await listCustomers(customerTabSearch);
+          statusMessage = "Customer deleted.";
+          render();
+        } catch (err) {
+          statusMessage = `Error: ${err.message}`;
+          render();
+        }
+      },
+      onUse: (id) => {
+        state.customer_id = id;
+        activeTab = "summary";
+        statusMessage = "Customer attached to costing.";
+        render();
+      },
+    });
+  }
 }
 
 function bindComponents(root) {
@@ -185,6 +267,7 @@ function bindSummary(root) {
     el.addEventListener("input", () => fn(el));
   };
   set("summary-title", (el) => { state.title = el.value; });
+  set("summary-quote-ref", (el) => { state.quote_ref = el.value; });
   set("summary-diam", (el) => { s.diam = parseFloat(el.value) || 0; });
   set("summary-expan-diam", (el) => { s.expan_diam = parseFloat(el.value) || 0; });
   set("summary-expan-height", (el) => { s.expan_height = parseFloat(el.value) || 0; });
@@ -318,12 +401,14 @@ async function saveToServer() {
   try {
     const body = {
       title: state.title || "Untitled costing",
+      quote_ref: state.quote_ref || null,
       customer_id: state.customer_id,
       payload: payloadForSave(),
     };
     const saved = await saveCosting(body, state.costing_id);
     state.costing_id = saved.id;
     state.title = saved.title;
+    state.quote_ref = saved.quote_ref || "";
     statusMessage = `Saved to server (id ${saved.id}).`;
     await refreshSavedList();
   } catch (err) {
@@ -344,6 +429,7 @@ async function loadFromServer(event) {
       costing_id: row.id,
       customer_id: row.customer_id,
       title: row.title,
+      quote_ref: row.quote_ref || "",
       results: null,
     };
     syncComponentsPrice();
@@ -357,21 +443,57 @@ async function loadFromServer(event) {
 async function refreshSavedList() {
   try {
     savedCostings = await listCostings();
-    customers = await listCustomers();
-    render();
+    customers = await listCustomers(customerSearch);
   } catch {
     /* ignore */
   }
 }
 
-async function quickAddCustomer() {
-  const name = prompt("Company name:");
-  if (!name?.trim()) return;
+async function searchSummaryCustomers() {
+  const input = document.getElementById("summary-cust-search");
+  customerSearch = input?.value?.trim() || "";
   try {
-    const c = await createCustomer({ company_name: name.trim() });
-    customers = await listCustomers();
-    state.customer_id = c.id;
-    statusMessage = `Customer "${c.company_name}" added.`;
+    customers = await listCustomers(customerSearch);
+    statusMessage = customerSearch
+      ? `Found ${customers.length} customer(s).`
+      : "Showing all customers.";
+    render();
+  } catch (err) {
+    statusMessage = `Search failed: ${err.message}`;
+    render();
+  }
+}
+
+async function searchCustomersTab() {
+  const input = document.getElementById("cust-search");
+  customerTabSearch = input?.value?.trim() || "";
+  try {
+    customers = await listCustomers(customerTabSearch);
+    render();
+  } catch (err) {
+    statusMessage = `Search failed: ${err.message}`;
+    render();
+  }
+}
+
+async function saveCustomerForm(data) {
+  if (!data.company_name) {
+    statusMessage = "Company name is required.";
+    render();
+    return;
+  }
+  try {
+    if (customerForm?.isNew) {
+      const c = await createCustomer(data);
+      state.customer_id = c.id;
+      statusMessage = `Customer "${c.company_name}" created.`;
+    } else {
+      await updateCustomer(customerForm.id, data);
+      statusMessage = `Customer "${data.company_name}" updated.`;
+    }
+    customerForm = null;
+    customerTabSearch = "";
+    customers = await listCustomers(customerSearch);
     render();
   } catch (err) {
     statusMessage = `Error: ${err.message}`;
@@ -418,13 +540,19 @@ function renderSummary() {
   const savedOpts = [{ value: "", label: "— Load saved costing —" }].concat(
     savedCostings.map((c) => ({
       value: String(c.id),
-      label: `#${c.id} ${c.title}${c.customer_name ? ` (${c.customer_name})` : ""}`,
+      label: `#${c.id} ${c.title}${c.quote_ref ? ` [${c.quote_ref}]` : ""}${c.customer_name ? ` (${c.customer_name})` : ""}`,
     }))
   );
   return `<section class="panel">
     <h2>Tank summary</h2>
     <div class="field-grid">
       ${textInput("Job title", state.title, { id: "summary-title" })}
+      ${textInput("Quote / job ref", state.quote_ref, { id: "summary-quote-ref" })}
+      ${textInput("Search customers", customerSearch, { id: "summary-cust-search" })}
+      <label class="field">
+        <span>&nbsp;</span>
+        <button type="button" id="btn-cust-summary-search" class="btn secondary">Search</button>
+      </label>
       ${selectInput("Customer", state.customer_id ? String(state.customer_id) : "", custOpts, { id: "summary-customer" })}
       <label class="field">
         <span>&nbsp;</span>
@@ -611,6 +739,7 @@ function renderTabs() {
     ["cones", "Cones"],
     ["strakes", "Strakes"],
     ["components", "Components"],
+    ["customers", "Customers"],
     ["totals", "Totals"],
   ];
   return tabs
@@ -625,6 +754,12 @@ function renderPanel() {
     case "cones": return renderCones();
     case "strakes": return renderStrakes();
     case "components": return renderComponents();
+    case "customers":
+      return renderCustomersTab({
+        customers,
+        search: customerTabSearch,
+        form: customerForm,
+      });
     case "totals": return renderTotals();
     default: return renderSummary();
   }
@@ -635,7 +770,7 @@ function render() {
   root.innerHTML = `
     <header>
       <h1>Tank Costing</h1>
-      <p class="subtitle">${state.title || "Untitled"}</p>
+      <p class="subtitle">${state.title || "Untitled"}${state.quote_ref ? ` · ${state.quote_ref}` : ""}</p>
     </header>
     <div class="toolbar">
       <div class="tabs">${renderTabs()}</div>
