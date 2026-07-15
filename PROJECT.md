@@ -19,17 +19,31 @@ Source material lives in `../Old Program/`:
 
 **Current stage**
 
-**Stage 3 in progress — Costing UI**
+**Stage 3 — Costing UI** (core tabs done; components & customer linking next)
 
-- Tabbed costing form (Summary, Cones, Strakes, Totals)
-- Calculate via `/api/calc/costing`
-- Save/load costing as JSON
+## Roadmap (updated)
 
-## Future stages
+| Stage | Focus |
+|-------|--------|
+| 1–2 | ✅ Scaffold, DB seed, calculation engine |
+| 3 | Costing UI, components picker, quote workflow |
+| 4 | **Customer details** — contacts, addresses, quotes |
+| 5 | **Users & security** — login, roles, admin portal, MFA |
+| 6 | **Email** — SMTP settings, invites, MFA, customer quote send |
+| 7 | Reports, `.jma` migration, DB persistence, **cPanel deploy** |
 
-1. ~~Port calculation engine~~ (done)
-2. ~~Costing workflow UI~~ (initial version done)
-3. `.jma` file import
-4. PDF reports
-5. Staging deployment
-6. Production deployment with manual approval
+**Hosting (accepted):** Shared server with **cPanel**; subdomain e.g. `tankcalc.jmagroup.com.au` (TBC).
+
+**Customers:** Fresh data in app — **no** migration of old ClientDetails.
+
+**MFA:** Admin every login; users MFA once per device then optional trusted browser.
+
+**Customer email:** TBC.
+
+## Future stages (detail)
+
+3. Components + customer on costing
+4. Customer / quote management
+5. User management, admin settings, MFA
+6. SMTP and transactional email
+7. PDF reports, dip chart, hosting

@@ -74,3 +74,51 @@ Calculate strake volume and steel from input dimensions.
 ### POST /api/calc/costing
 
 Calculate all cones, strakes, and summary totals in one request. Body includes `cones[]`, `strakes[]`, and `summary` (diameter, expansion chamber, markup, GST, etc.).
+
+### GET /api/customers
+
+Query params: `limit`, `offset`, `q` (search company, contact, email)
+
+### POST /api/customers
+
+Create a customer. Body: `company_name` (required), optional `contact_name`, `email`, `phone`, addresses, etc.
+
+### GET /api/customers/{customer_id}
+
+Single customer record.
+
+### PUT /api/customers/{customer_id}
+
+Update customer fields.
+
+### DELETE /api/customers/{customer_id}
+
+Delete customer (204).
+
+### GET /api/costings
+
+List saved costings (most recently updated first). Query params: `limit`, `offset`.
+
+### POST /api/costings
+
+Save a new costing. Body:
+
+```json
+{
+  "title": "Pettavel 5KL",
+  "customer_id": 1,
+  "payload": { "version": 1, "summary": {}, "cones": [], "strakes": [] }
+}
+```
+
+### GET /api/costings/{costing_id}
+
+Load a saved costing (includes parsed `payload` JSON).
+
+### PUT /api/costings/{costing_id}
+
+Update an existing costing.
+
+### DELETE /api/costings/{costing_id}
+
+Delete a saved costing (204).

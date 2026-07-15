@@ -163,6 +163,25 @@ header h1 {
   gap: 0.5rem;
 }
 
+.full-width {
+  grid-column: 1 / -1;
+}
+
+.component-list {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: #1a5a96;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 0.85rem;
+  margin-left: 0.5rem;
+}
+
 .results-inline {
   display: flex;
   flex-wrap: wrap;

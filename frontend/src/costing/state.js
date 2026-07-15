@@ -50,7 +50,10 @@ export function defaultCosting() {
   return {
     version: 1,
     title: "Untitled costing",
+    customer_id: null,
+    costing_id: null,
     cones_rate_per_hour: 55,
+    selected_components: [],
     summary: {
       diam: 1200,
       expan_diam: 450,

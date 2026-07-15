@@ -1,4 +1,13 @@
-import { calculateCosting, fetchHealth } from "./api.js";
+import {
+  calculateCosting,
+  createCustomer,
+  fetchHealth,
+  getCosting,
+  listCostings,
+  listCustomers,
+  saveCosting,
+  searchStock,
+} from "./api.js";
 import {
   NUM_CONES,
   NUM_STRAKES,
@@ -29,6 +38,23 @@ const CONE_TYPE_OPTIONS = [
 let state = defaultCosting();
 let activeTab = "summary";
 let statusMessage = "";
+let customers = [];
+let savedCostings = [];
+let stockItems = [];
+let stockFilter = "";
+
+function syncComponentsPrice() {
+  if (!state.selected_components?.length) return;
+  state.summary.components_price = state.selected_components.reduce(
+    (sum, c) => sum + (Number(c.cost) || 0),
+    0
+  );
+}
+
+function payloadForSave() {
+  const { results, ...rest } = state;
+  return rest;
+}
 
 function fmt(n, digits = 2) {
   if (n == null || Number.isNaN(n)) return "—";
@@ -100,7 +126,15 @@ function bind(root) {
 
   root.querySelector("#btn-calculate")?.addEventListener("click", runCalculate);
   root.querySelector("#btn-save")?.addEventListener("click", saveJson);
+  root.querySelector("#btn-save-server")?.addEventListener("click", saveToServer);
   root.querySelector("#btn-load")?.addEventListener("click", () => root.querySelector("#file-load")?.click());
+  root.querySelector("#btn-load-server")?.addEventListener("change", loadFromServer);
+  root.querySelector("#btn-refresh-saved")?.addEventListener("click", refreshSavedList);
+  root.querySelector("#btn-add-customer")?.addEventListener("click", quickAddCustomer);
+  root.querySelector("#btn-search-stock")?.addEventListener("click", loadStock);
+  root.querySelector("#stock-filter")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") loadStock();
+  });
   root.querySelector("#btn-new")?.addEventListener("click", () => {
     if (confirm("Start a new costing? Unsaved changes will be lost.")) {
       state = defaultCosting();
@@ -113,6 +147,34 @@ function bind(root) {
   bindSummary(root);
   bindCones(root);
   bindStrakes(root);
+  bindComponents(root);
+}
+
+function bindComponents(root) {
+  root.querySelectorAll("[data-add-stock]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = parseInt(btn.dataset.addStock, 10);
+      const item = stockItems[idx];
+      if (!item) return;
+      if (!state.selected_components) state.selected_components = [];
+      state.selected_components.push({
+        stock_id: item.id,
+        type: item.type,
+        description: item.description,
+        cost: Number(item.cost) || 0,
+      });
+      syncComponentsPrice();
+      render();
+    });
+  });
+  root.querySelectorAll("[data-remove-component]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = parseInt(btn.dataset.removeComponent, 10);
+      state.selected_components.splice(idx, 1);
+      syncComponentsPrice();
+      render();
+    });
+  });
 }
 
 function bindSummary(root) {
@@ -135,6 +197,10 @@ function bindSummary(root) {
   set("summary-lab-misc-hrs", (el) => { s.lab_misc_hrs = parseFloat(el.value) || 0; });
   set("summary-lab-misc-rate", (el) => { s.lab_misc_rate = parseFloat(el.value) || 0; });
   set("cones-rate", (el) => { state.cones_rate_per_hour = parseFloat(el.value) || 0; });
+  const custEl = root.querySelector("#summary-customer");
+  custEl?.addEventListener("change", () => {
+    state.customer_id = custEl.value ? parseInt(custEl.value, 10) : null;
+  });
 }
 
 function bindCones(root) {
@@ -215,6 +281,7 @@ function bindStrakes(root) {
 }
 
 async function runCalculate() {
+  syncComponentsPrice();
   statusMessage = "Calculating…";
   render();
   try {
@@ -244,6 +311,87 @@ function saveJson() {
   render();
 }
 
+async function saveToServer() {
+  syncComponentsPrice();
+  statusMessage = "Saving to server…";
+  render();
+  try {
+    const body = {
+      title: state.title || "Untitled costing",
+      customer_id: state.customer_id,
+      payload: payloadForSave(),
+    };
+    const saved = await saveCosting(body, state.costing_id);
+    state.costing_id = saved.id;
+    state.title = saved.title;
+    statusMessage = `Saved to server (id ${saved.id}).`;
+    await refreshSavedList();
+  } catch (err) {
+    statusMessage = `Save failed: ${err.message}`;
+  }
+  render();
+}
+
+async function loadFromServer(event) {
+  const id = parseInt(event.target.value, 10);
+  if (!id) return;
+  statusMessage = "Loading…";
+  render();
+  try {
+    const row = await getCosting(id);
+    state = {
+      ...parseCosting(row.payload),
+      costing_id: row.id,
+      customer_id: row.customer_id,
+      title: row.title,
+      results: null,
+    };
+    syncComponentsPrice();
+    statusMessage = `Loaded costing #${id}.`;
+  } catch (err) {
+    statusMessage = `Load failed: ${err.message}`;
+  }
+  render();
+}
+
+async function refreshSavedList() {
+  try {
+    savedCostings = await listCostings();
+    customers = await listCustomers();
+    render();
+  } catch {
+    /* ignore */
+  }
+}
+
+async function quickAddCustomer() {
+  const name = prompt("Company name:");
+  if (!name?.trim()) return;
+  try {
+    const c = await createCustomer({ company_name: name.trim() });
+    customers = await listCustomers();
+    state.customer_id = c.id;
+    statusMessage = `Customer "${c.company_name}" added.`;
+    render();
+  } catch (err) {
+    statusMessage = `Error: ${err.message}`;
+    render();
+  }
+}
+
+async function loadStock() {
+  const input = document.getElementById("stock-filter");
+  stockFilter = input?.value || "";
+  try {
+    stockItems = await searchStock(stockFilter, 40);
+    activeTab = "components";
+    render();
+  } catch (err) {
+    statusMessage = `Stock search failed: ${err.message}`;
+    render();
+  }
+}
+
 function loadJsonFile(event) {
   const file = event.target.files?.[0];
   if (!file) return;
@@ -264,10 +412,30 @@ function loadJsonFile(event) {
 
 function renderSummary() {
   const s = state.summary;
+  const custOpts = [{ value: "", label: "— No customer —" }].concat(
+    customers.map((c) => ({ value: String(c.id), label: c.company_name }))
+  );
+  const savedOpts = [{ value: "", label: "— Load saved costing —" }].concat(
+    savedCostings.map((c) => ({
+      value: String(c.id),
+      label: `#${c.id} ${c.title}${c.customer_name ? ` (${c.customer_name})` : ""}`,
+    }))
+  );
   return `<section class="panel">
     <h2>Tank summary</h2>
     <div class="field-grid">
       ${textInput("Job title", state.title, { id: "summary-title" })}
+      ${selectInput("Customer", state.customer_id ? String(state.customer_id) : "", custOpts, { id: "summary-customer" })}
+      <label class="field">
+        <span>&nbsp;</span>
+        <button type="button" id="btn-add-customer" class="btn secondary">+ New customer</button>
+      </label>
+      ${selectInput("Open saved", "", savedOpts, { id: "btn-load-server" })}
+      <label class="field">
+        <span>&nbsp;</span>
+        <button type="button" id="btn-refresh-saved" class="btn secondary">Refresh list</button>
+      </label>
+      ${state.costing_id ? `<p class="hint full-width">Server id: ${state.costing_id}</p>` : ""}
       ${numInput("Tank diameter (mm)", s.diam, null, { id: "summary-diam", min: 0 })}
       ${numInput("Expansion diam (mm)", s.expan_diam, null, { id: "summary-expan-diam" })}
       ${numInput("Expansion height (mm)", s.expan_height, null, { id: "summary-expan-height" })}
@@ -357,6 +525,38 @@ function renderStrakes() {
   </section>`;
 }
 
+function renderComponents() {
+  const list = (state.selected_components || [])
+    .map(
+      (c, i) => `<li>${c.description || c.type} — ${money(c.cost)}
+        <button type="button" class="btn-link" data-remove-component="${i}">Remove</button></li>`
+    )
+    .join("");
+  const stockRows = stockItems
+    .map(
+      (item, i) => `<tr>
+        <td>${item.type || ""}</td>
+        <td>${item.description || ""}</td>
+        <td>${money(item.cost)}</td>
+        <td><button type="button" class="btn secondary" data-add-stock="${i}">Add</button></td>
+      </tr>`
+    )
+    .join("");
+  return `<section class="panel">
+    <h2>Components (stock)</h2>
+    <p class="hint">Selected components sum into <strong>Components price</strong> on Summary.</p>
+    <ul class="component-list">${list || "<li class='hint'>No components selected.</li>"}</ul>
+    <p>Total selected: <strong>${money(state.summary.components_price)}</strong></p>
+    <div class="field-grid">
+      ${textInput("Search stock (type filter)", stockFilter, { id: "stock-filter" })}
+      <label class="field"><span>&nbsp;</span>
+        <button type="button" id="btn-search-stock" class="btn secondary">Search</button>
+      </label>
+    </div>
+    ${stockItems.length ? `<table><thead><tr><th>Type</th><th>Description</th><th>Cost</th><th></th></tr></thead><tbody>${stockRows}</tbody></table>` : ""}
+  </section>`;
+}
+
 function renderTotals() {
   const t = state.results?.totals;
   if (!t) {
@@ -410,6 +610,7 @@ function renderTabs() {
     ["summary", "Summary"],
     ["cones", "Cones"],
     ["strakes", "Strakes"],
+    ["components", "Components"],
     ["totals", "Totals"],
   ];
   return tabs
@@ -423,6 +624,7 @@ function renderPanel() {
   switch (activeTab) {
     case "cones": return renderCones();
     case "strakes": return renderStrakes();
+    case "components": return renderComponents();
     case "totals": return renderTotals();
     default: return renderSummary();
   }
@@ -442,6 +644,7 @@ function render() {
         <button type="button" id="btn-load" class="btn secondary">Load JSON</button>
         <input type="file" id="file-load" accept=".json,application/json" hidden />
         <button type="button" id="btn-save" class="btn secondary">Save JSON</button>
+        <button type="button" id="btn-save-server" class="btn secondary">Save to server</button>
         <button type="button" id="btn-calculate" class="btn primary">Calculate</button>
       </div>
     </div>
@@ -455,6 +658,7 @@ export async function initCostingApp() {
   try {
     const health = await fetchHealth();
     statusMessage = `${health.app} v${health.version} — ready`;
+    await refreshSavedList();
   } catch {
     statusMessage = "API not reachable — start the backend on port 8080";
   }

@@ -82,6 +82,9 @@ def get_connection() -> sqlite3.Connection:
 
 
 def init_db() -> None:
+    from .repositories.costing_store import init_extended_schema
+
     with get_connection() as conn:
         conn.executescript(SCHEMA)
+        init_extended_schema(conn)
         conn.commit()

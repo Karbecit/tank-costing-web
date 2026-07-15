@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import get_connection, init_db
-from .routers import calc
+from .routers import calc, costings, customers
 
 
 @asynccontextmanager
@@ -21,6 +21,8 @@ app = FastAPI(
 )
 
 app.include_router(calc.router)
+app.include_router(customers.router)
+app.include_router(costings.router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -41,7 +43,7 @@ def health():
 
 @app.get("/api/stats")
 def stats():
-    tables = ["rates", "stock", "clients", "quote_num", "status"]
+    tables = ["rates", "stock", "clients", "quote_num", "status", "customers", "costings"]
     with get_connection() as conn:
         counts = {
             table: conn.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()["n"]
