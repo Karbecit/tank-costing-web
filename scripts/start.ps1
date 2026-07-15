@@ -6,10 +6,10 @@ if (-not (Test-Path (Join-Path $Root ".venv"))) {
     exit 1
 }
 
-Write-Host "Starting API on http://127.0.0.1:8000"
+Write-Host "Starting API on http://127.0.0.1:8080"
 Start-Process powershell -ArgumentList @(
     "-NoExit", "-Command",
-    "cd '$Root\backend'; ..\.venv\Scripts\python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000"
+    "cd '$Root\backend'; ..\.venv\Scripts\python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8080"
 )
 
 Start-Sleep -Seconds 2

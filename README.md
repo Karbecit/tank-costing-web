@@ -11,8 +11,8 @@ cd "C:\Projects\Tank Costing\tank-costing-web"
 ```
 
 - **Frontend:** http://localhost:5173
-- **API:** http://localhost:8000/api/health
-- **API docs:** http://localhost:8000/docs
+- **API:** http://localhost:8080/api/health
+- **API docs:** http://localhost:8080/docs
 
 ## Prerequisites
 

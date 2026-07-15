@@ -21,7 +21,7 @@
 ```
 Browser (localhost:5173)
   → Vite dev proxy /api/*
-  → FastAPI (localhost:8000)
+  → FastAPI (localhost:8080)
   → SQLite (data/tankcosting.db)
 ```
 

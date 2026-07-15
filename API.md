@@ -1,8 +1,8 @@
 # API
 
-Base URL (local): `http://127.0.0.1:8000`
+Base URL (local): `http://127.0.0.1:8080`
 
-Interactive docs: `http://127.0.0.1:8000/docs`
+Interactive docs: `http://127.0.0.1:8080/docs`
 
 ## Endpoints
 
