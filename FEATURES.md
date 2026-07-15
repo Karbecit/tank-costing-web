@@ -13,11 +13,11 @@
 - [x] Strakes and Summary totals calculation
 - [x] `.jma` parser for cones, strakes, and summary fields
 - [x] POST `/api/calc/cone`, `/api/calc/strake`, `/api/calc/costing`
+- [x] Costing UI — Summary, Cones, Strakes tabs with Calculate and JSON save/load
 
 ## Planned
 
-- [ ] Summary costing page
-- [ ] Cones and Strakes UI screens
+- [ ] Components picker from stock database
 - [ ] Components picker
 - [ ] Labour and GST totals
 - [ ] `.jma` full import/export

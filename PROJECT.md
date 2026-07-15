@@ -19,16 +19,16 @@ Source material lives in `../Old Program/`:
 
 **Current stage**
 
-**Stage 2 complete — Calculation engine**
+**Stage 3 in progress — Costing UI**
 
-- Cones, Strakes, and Summary totals ported from VB6
-- Validated against legacy `.jma` sample files
-- API endpoints: `/api/calc/cone`, `/api/calc/strake`, `/api/calc/costing`
+- Tabbed costing form (Summary, Cones, Strakes, Totals)
+- Calculate via `/api/calc/costing`
+- Save/load costing as JSON
 
 ## Future stages
 
 1. ~~Port calculation engine~~ (done)
-2. Costing workflow UI (Summary page first)
+2. ~~Costing workflow UI~~ (initial version done)
 3. `.jma` file import
 4. PDF reports
 5. Staging deployment

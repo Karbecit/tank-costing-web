@@ -8,9 +8,10 @@
 
 ## Stage 3 — Costing UI
 
-- [ ] Summary page form
-- [ ] Cones and Strakes screens
-- [ ] Save/load costing as JSON
+- [x] Summary page form
+- [x] Cones and Strakes screens
+- [x] Save/load costing as JSON
+- [ ] Wire components picker from stock DB
 
 ## Stage 4 — Reports & deployment
 

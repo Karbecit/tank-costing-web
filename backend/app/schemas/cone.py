@@ -25,6 +25,7 @@ class ConeInputSchema(BaseModel):
     price_kg: float = 0.0
     num_hours: float = 0.0
     grade: str = ""
+    volume_treat: int = 0
 
     model_config = {"populate_by_name": True}
 
