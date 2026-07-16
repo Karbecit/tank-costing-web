@@ -44,9 +44,13 @@
 
 ## Current (development)
 
-
-
 Local only: `.\scripts\start.ps1` — API `:8080`, UI `:5173`.
+
+Production build: `.\scripts\build-production.ps1` — outputs `frontend/dist/` ready for upload.
+
+Backend entry for cPanel Passenger: `backend/passenger_wsgi.py`
+
+Apache template: `deploy/public_html.htaccess`
 
 
 

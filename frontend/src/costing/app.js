@@ -1,27 +1,47 @@
-import { getUser, logout } from "../auth.js";
+import {
+  changePassword,
+  confirmMfa,
+  disableMfa,
+  fetchMe,
+  getUser,
+  logout,
+  setupMfa,
+} from "../auth.js";
 import {
   calculateCosting,
+  calcDipChart,
   createCustomer,
   createUser,
   deleteCustomer,
+  downloadJmaExport,
+  downloadQuotePdf,
+  emailQuote,
   fetchHealth,
   getCosting,
   getCustomer,
+  getSmtpSettings,
+  importJma,
+  listAudit,
   listCostings,
   listCustomers,
   listUsers,
   resetUserPassword,
   saveCosting,
+  saveSmtpSettings,
   searchStock,
+  sendUserInvite,
+  testSmtp,
   updateCustomer,
   updateUser,
 } from "./api.js";
-import { bindAdminTab, readAdminForm, renderAdminTab } from "./admin.js";
+import { bindAccountTab, readPasswordForm, renderAccountTab } from "./account.js";
+import { bindAdminTab, readAdminForm, readSmtpForm, renderAdminTab } from "./admin.js";
 import {
   bindCustomersTab,
   emptyCustomerForm,
   renderCustomersTab,
 } from "./customers.js";
+import { bindDipTab, readDipIncrement, renderDipTab } from "./dip.js";
 import {
   NUM_CONES,
   NUM_STRAKES,
@@ -65,6 +85,11 @@ let customerTabSearch = "";
 let customerForm = null;
 let adminUsers = [];
 let adminFormOpen = false;
+let adminView = "users";
+let auditLog = [];
+let mfaSetupData = null;
+let smtpSettings = null;
+let dipData = null;
 
 function canEdit() {
   const role = getUser()?.role;
@@ -167,8 +192,9 @@ function filterCustomers(query) {
 
 function customerComboboxListHtml(query) {
   const filtered = filterCustomers(query);
-  const create =
-    '<li class="combobox-option combobox-create" data-cust-pick="new">+ Create New Customer</li>';
+  const create = canEdit()
+    ? '<li class="combobox-option combobox-create" data-cust-pick="new">+ Create New Customer</li>'
+    : "";
   const none = '<li class="combobox-option" data-cust-pick="">— No customer —</li>';
   const items = filtered
     .map((c) => {
@@ -201,6 +227,7 @@ function bindCustomerCombobox(root) {
 
   const pickCustomer = (value) => {
     if (value === "new") {
+      if (!canEdit()) return;
       customerForm = { isNew: true, data: emptyCustomerForm() };
       activeTab = "customers";
       customerPickerOpen = false;
@@ -282,10 +309,13 @@ function filterCostings(query) {
 
 function costingComboboxListHtml(query) {
   const filtered = filterCostings(query);
-  const createNew =
-    '<li class="combobox-option combobox-create" data-cost-pick="new">+ Create New</li>';
-  const createCopy =
-    '<li class="combobox-option combobox-create" data-cost-pick="copy">+ Create New from Existing</li>';
+  const edit = canEdit();
+  const createNew = edit
+    ? '<li class="combobox-option combobox-create" data-cost-pick="new">+ Create New</li>'
+    : "";
+  const createCopy = edit
+    ? '<li class="combobox-option combobox-create" data-cost-pick="copy">+ Create New from Existing</li>'
+    : "";
   const items = filtered
     .map((c) => {
       const meta = [
@@ -451,6 +481,10 @@ function bind(root) {
   root.querySelector("#btn-save")?.addEventListener("click", saveJson);
   root.querySelector("#btn-save-server")?.addEventListener("click", saveToServer);
   root.querySelector("#btn-load")?.addEventListener("click", () => root.querySelector("#file-load")?.click());
+  root.querySelector("#btn-load-jma")?.addEventListener("click", () => root.querySelector("#file-load-jma")?.click());
+  root.querySelector("#btn-pdf")?.addEventListener("click", downloadPdf);
+  root.querySelector("#btn-export-jma")?.addEventListener("click", exportJma);
+  root.querySelector("#btn-email-quote")?.addEventListener("click", sendQuoteEmail);
   root.querySelector("#btn-refresh-saved")?.addEventListener("click", async () => {
     await refreshSavedList();
     render();
@@ -468,6 +502,7 @@ function bind(root) {
     }
   });
   root.querySelector("#file-load")?.addEventListener("change", loadJsonFile);
+  root.querySelector("#file-load-jma")?.addEventListener("change", loadJmaFile);
 
   bindSummary(root);
   bindCones(root);
@@ -476,6 +511,7 @@ function bind(root) {
   if (activeTab === "customers") {
     bindCustomersTab(root, {
       onNew: () => {
+        if (!canEdit()) return;
         customerForm = { isNew: true, data: emptyCustomerForm() };
         render();
       },
@@ -537,6 +573,33 @@ function bind(root) {
     bindAdminTab(root, {
       onNew: () => {
         adminFormOpen = true;
+        adminView = "users";
+        render();
+      },
+      onAudit: async () => {
+        try {
+          auditLog = await listAudit();
+          adminView = "audit";
+          adminFormOpen = false;
+          render();
+        } catch (err) {
+          statusMessage = `Error: ${err.message}`;
+          render();
+        }
+      },
+      onSmtp: async () => {
+        try {
+          smtpSettings = await getSmtpSettings();
+          adminView = "smtp";
+          adminFormOpen = false;
+          render();
+        } catch (err) {
+          statusMessage = `Error: ${err.message}`;
+          render();
+        }
+      },
+      onBackUsers: () => {
+        adminView = "users";
         render();
       },
       onCancel: () => {
@@ -546,10 +609,23 @@ function bind(root) {
       onSave: async () => {
         const data = readAdminForm(root);
         try {
-          await createUser(data);
+          const user = await createUser({
+            email: data.email,
+            display_name: data.display_name,
+            password: data.password,
+            role: data.role,
+          });
           adminFormOpen = false;
           adminUsers = await listUsers();
           statusMessage = `User ${data.email} created.`;
+          if (data.sendEmail && data.password) {
+            try {
+              await sendUserInvite(user.id, data.password);
+              statusMessage += " Invite email sent.";
+            } catch (err) {
+              statusMessage += ` Email failed: ${err.message}`;
+            }
+          }
           render();
         } catch (err) {
           statusMessage = `Error: ${err.message}`;
@@ -573,6 +649,146 @@ function bind(root) {
         try {
           await resetUserPassword(id, pwd);
           statusMessage = "Password reset.";
+          if (confirm("Send password reset email to user?")) {
+            await sendUserInvite(id, pwd);
+            statusMessage = "Password reset and email sent.";
+          }
+          render();
+        } catch (err) {
+          statusMessage = `Error: ${err.message}`;
+          render();
+        }
+      },
+      onInvite: async (id) => {
+        const pwd = prompt("Enter password to include in invite email:");
+        if (!pwd) return;
+        try {
+          await sendUserInvite(id, pwd);
+          statusMessage = "Invite email sent.";
+          render();
+        } catch (err) {
+          statusMessage = `Error: ${err.message}`;
+          render();
+        }
+      },
+      onRoleChange: async (id, role) => {
+        try {
+          await updateUser(id, { role });
+          adminUsers = await listUsers();
+          statusMessage = "Role updated.";
+          render();
+        } catch (err) {
+          statusMessage = `Error: ${err.message}`;
+          adminUsers = await listUsers();
+          render();
+        }
+      },
+      onSmtpSave: async () => {
+        const data = readSmtpForm(root);
+        try {
+          smtpSettings = await saveSmtpSettings(data);
+          statusMessage = "SMTP settings saved.";
+          render();
+        } catch (err) {
+          statusMessage = `Error: ${err.message}`;
+          render();
+        }
+      },
+      onSmtpTest: async () => {
+        const to = root.querySelector("#smtp-test-to")?.value?.trim();
+        if (!to) {
+          statusMessage = "Enter a test recipient email.";
+          render();
+          return;
+        }
+        try {
+          await testSmtp(to);
+          statusMessage = `Test email sent to ${to}.`;
+          render();
+        } catch (err) {
+          statusMessage = `Error: ${err.message}`;
+          render();
+        }
+      },
+    });
+  }
+  if (activeTab === "dip") {
+    bindDipTab(root, {
+      onGenerate: async () => {
+        if (!state.results) {
+          statusMessage = "Calculate the costing first.";
+          render();
+          return;
+        }
+        const inc = readDipIncrement(root);
+        try {
+          dipData = await calcDipChart(payloadForSave(), inc);
+          statusMessage = "Dip chart generated.";
+          render();
+        } catch (err) {
+          statusMessage = `Error: ${err.message}`;
+          render();
+        }
+      },
+    });
+  }
+  if (activeTab === "account") {
+    bindAccountTab(root, {
+      onChangePassword: async () => {
+        const { current, newPassword, confirm } = readPasswordForm(root);
+        if (!current || !newPassword) {
+          statusMessage = "Enter current and new password.";
+          render();
+          return;
+        }
+        if (newPassword !== confirm) {
+          statusMessage = "New passwords do not match.";
+          render();
+          return;
+        }
+        try {
+          await changePassword(current, newPassword);
+          statusMessage = "Password updated.";
+          render();
+        } catch (err) {
+          statusMessage = `Error: ${err.message}`;
+          render();
+        }
+      },
+      onMfaStart: async () => {
+        try {
+          mfaSetupData = await setupMfa();
+          render();
+        } catch (err) {
+          statusMessage = `Error: ${err.message}`;
+          render();
+        }
+      },
+      onMfaConfirm: async () => {
+        const code = root.querySelector("#acct-mfa-confirm")?.value?.trim();
+        if (!code) return;
+        try {
+          await confirmMfa(code);
+          mfaSetupData = null;
+          await fetchMe();
+          statusMessage = "MFA enabled.";
+          render();
+        } catch (err) {
+          statusMessage = `Error: ${err.message}`;
+          render();
+        }
+      },
+      onMfaCancel: () => {
+        mfaSetupData = null;
+        render();
+      },
+      onMfaDisable: async () => {
+        const code = root.querySelector("#acct-mfa-disable")?.value?.trim();
+        if (!code) return;
+        try {
+          await disableMfa(code);
+          await fetchMe();
+          statusMessage = "MFA disabled.";
           render();
         } catch (err) {
           statusMessage = `Error: ${err.message}`;
@@ -843,6 +1059,85 @@ function loadJsonFile(event) {
   event.target.value = "";
 }
 
+async function loadJmaFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  statusMessage = "Importing .jma…";
+  render();
+  try {
+    const saved = await importJma(file);
+    state = {
+      ...parseCosting(saved.payload),
+      costing_id: saved.id,
+      customer_id: saved.customer_id,
+      title: saved.title,
+      quote_ref: saved.quote_ref || "",
+      results: null,
+    };
+    syncComponentsPrice();
+    statusMessage = `Imported ${file.name} (id ${saved.id}).`;
+    await refreshSavedList();
+  } catch (err) {
+    statusMessage = `Import failed: ${err.message}`;
+  }
+  event.target.value = "";
+  render();
+}
+
+async function downloadPdf() {
+  if (!state.costing_id) {
+    statusMessage = "Save to server first to generate a PDF quote.";
+    render();
+    return;
+  }
+  statusMessage = "Generating PDF…";
+  render();
+  try {
+    const name = `${(state.title || "quote").replace(/\W+/g, "-").toLowerCase()}.pdf`;
+    await downloadQuotePdf(state.costing_id, name);
+    statusMessage = "PDF downloaded.";
+  } catch (err) {
+    statusMessage = `PDF failed: ${err.message}`;
+  }
+  render();
+}
+
+async function exportJma() {
+  if (!state.costing_id) {
+    statusMessage = "Save to server first to export .jma.";
+    render();
+    return;
+  }
+  try {
+    const name = `${(state.title || "costing").replace(/\W+/g, "-").toLowerCase()}.jma`;
+    await downloadJmaExport(state.costing_id, name);
+    statusMessage = ".jma exported.";
+  } catch (err) {
+    statusMessage = `Export failed: ${err.message}`;
+  }
+  render();
+}
+
+async function sendQuoteEmail() {
+  if (!state.costing_id) {
+    statusMessage = "Save to server first to email quote.";
+    render();
+    return;
+  }
+  const to = prompt("Send quote to email (leave blank to use customer email):");
+  if (to === null) return;
+  const message = prompt("Optional message to include in email:") || "";
+  statusMessage = "Sending quote email…";
+  render();
+  try {
+    await emailQuote(state.costing_id, to.trim() || null, message.trim() || null);
+    statusMessage = "Quote email sent.";
+  } catch (err) {
+    statusMessage = `Email failed: ${err.message}`;
+  }
+  render();
+}
+
 function renderSummary() {
   const s = state.summary;
   return `<section class="panel">
@@ -1034,6 +1329,8 @@ function renderTabs() {
     ["components", "Components"],
     ["customers", "Customers"],
     ["totals", "Totals"],
+    ["dip", "Dip chart"],
+    ["account", "Account"],
   ];
   if (isAdmin()) tabs.push(["admin", "Admin"]);
   return tabs
@@ -1053,10 +1350,16 @@ function renderPanel() {
         customers,
         search: customerTabSearch,
         form: customerForm,
+        readOnly: !canEdit(),
       });
+    case "account":
+      return renderAccountTab(getUser(), mfaSetupData);
     case "admin":
-      return isAdmin() ? renderAdminTab(adminUsers, adminFormOpen) : renderSummary();
+      return isAdmin()
+        ? renderAdminTab(adminUsers, adminFormOpen, auditLog, adminView, smtpSettings)
+        : renderSummary();
     case "totals": return renderTotals();
+    case "dip": return renderDipTab(dipData);
     default: return renderSummary();
   }
 }
@@ -1083,10 +1386,16 @@ function render() {
       <div class="actions">
         ${edit ? `<button type="button" id="btn-new" class="btn secondary">New</button>
         <button type="button" id="btn-load" class="btn secondary">Load JSON</button>
+        <button type="button" id="btn-load-jma" class="btn secondary">Load .jma</button>
         <input type="file" id="file-load" accept=".json,application/json" hidden />
+        <input type="file" id="file-load-jma" accept=".jma" hidden />
         <button type="button" id="btn-save" class="btn secondary">Save JSON</button>
         <button type="button" id="btn-save-server" class="btn secondary">Save to server</button>
-        <button type="button" id="btn-calculate" class="btn primary">Calculate</button>` : `<span class="hint">Read-only access</span>`}
+        <button type="button" id="btn-export-jma" class="btn secondary">Export .jma</button>
+        <button type="button" id="btn-pdf" class="btn secondary">PDF quote</button>
+        <button type="button" id="btn-email-quote" class="btn secondary">Email quote</button>
+        <button type="button" id="btn-calculate" class="btn primary">Calculate</button>` : `<span class="hint">Read-only access</span>
+        <button type="button" id="btn-pdf" class="btn secondary">PDF quote</button>`}
       </div>
     </div>
     ${statusMessage ? `<p class="status">${statusMessage}</p>` : ""}
@@ -1097,6 +1406,7 @@ function render() {
 
 export async function initCostingApp() {
   try {
+    await fetchMe();
     const health = await fetchHealth();
     statusMessage = `${health.app} v${health.version} — ready`;
     await refreshSavedList();

@@ -58,7 +58,12 @@ function renderCustomerForm(form, isNew) {
   </section>`;
 }
 
-function renderCustomerList(customers, search) {
+function renderCustomerList(customers, search, readOnly) {
+  const actions = (c) => readOnly
+    ? `<button type="button" class="btn secondary btn-sm" data-cust-use="${c.id}">Use</button>`
+    : `<button type="button" class="btn secondary btn-sm" data-cust-use="${c.id}">Use</button>
+          <button type="button" class="btn secondary btn-sm" data-cust-edit="${c.id}">Edit</button>
+          <button type="button" class="btn secondary btn-sm" data-cust-delete="${c.id}">Delete</button>`;
   const rows = customers
     .map(
       (c) => `<tr>
@@ -66,25 +71,21 @@ function renderCustomerList(customers, search) {
         <td>${esc(c.contact_name || "—")}</td>
         <td>${esc(c.town || "—")}</td>
         <td>${esc(c.email || "—")}</td>
-        <td class="actions-cell">
-          <button type="button" class="btn secondary btn-sm" data-cust-use="${c.id}">Use</button>
-          <button type="button" class="btn secondary btn-sm" data-cust-edit="${c.id}">Edit</button>
-          <button type="button" class="btn secondary btn-sm" data-cust-delete="${c.id}">Delete</button>
-        </td>
+        <td class="actions-cell">${actions(c)}</td>
       </tr>`
     )
     .join("");
   return `<section class="panel">
     <h2>Customers</h2>
-    <p class="hint">Manage customer records. Use <strong>Use</strong> to attach a customer to the current costing.</p>
+    <p class="hint">${readOnly ? "View customer records." : "Manage customer records."} Use <strong>Use</strong> to attach to the current costing.</p>
     <div class="field-grid toolbar-row">
       ${textField("Search", search, "cust-search")}
       <label class="field"><span>&nbsp;</span>
         <button type="button" id="btn-cust-search" class="btn secondary">Search</button>
       </label>
-      <label class="field"><span>&nbsp;</span>
+      ${readOnly ? "" : `<label class="field"><span>&nbsp;</span>
         <button type="button" id="btn-cust-new" class="btn primary">+ New customer</button>
-      </label>
+      </label>`}
     </div>
     ${customers.length
       ? `<div class="table-wrap"><table class="data-table">
@@ -95,9 +96,9 @@ function renderCustomerList(customers, search) {
   </section>`;
 }
 
-export function renderCustomersTab({ customers, search, form }) {
-  if (form) return renderCustomerForm(form.data, form.isNew);
-  return renderCustomerList(customers, search);
+export function renderCustomersTab({ customers, search, form, readOnly }) {
+  if (form && !readOnly) return renderCustomerForm(form.data, form.isNew);
+  return renderCustomerList(customers, search, readOnly);
 }
 
 export function readCustomerForm(root) {

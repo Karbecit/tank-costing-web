@@ -112,10 +112,108 @@ export async function updateUser(id, data) {
   return response.json();
 }
 
+export async function listAudit() {
+  const response = await apiFetch("/api/admin/audit?limit=100");
+  if (!response.ok) throw new Error("Failed to load audit log");
+  return response.json();
+}
+
 export async function resetUserPassword(id, password) {
   const response = await apiFetch(`/api/admin/users/${id}/reset-password`, {
     method: "POST",
     body: JSON.stringify({ password }),
   });
   if (!response.ok) throw new Error("Failed to reset password");
+}
+
+export async function sendUserInvite(id, password) {
+  const response = await apiFetch(`/api/admin/users/${id}/send-invite`, {
+    method: "POST",
+    body: JSON.stringify({ password }),
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || "Failed to send invite");
+  }
+}
+
+export async function getSmtpSettings() {
+  const response = await apiFetch("/api/admin/settings/smtp");
+  if (!response.ok) throw new Error("Failed to load SMTP settings");
+  return response.json();
+}
+
+export async function saveSmtpSettings(data) {
+  const response = await apiFetch("/api/admin/settings/smtp", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error("Failed to save SMTP settings");
+  return response.json();
+}
+
+export async function testSmtp(to) {
+  const response = await apiFetch("/api/admin/settings/smtp/test", {
+    method: "POST",
+    body: JSON.stringify({ to }),
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || "SMTP test failed");
+  }
+}
+
+export async function importJma(file) {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await apiFetch("/api/jma/import", { method: "POST", body: form });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || "Failed to import .jma file");
+  }
+  return response.json();
+}
+
+export async function downloadQuotePdf(costingId, filename = "quote.pdf") {
+  const response = await apiFetch(`/api/costings/${costingId}/quote.pdf`);
+  if (!response.ok) throw new Error("Failed to generate PDF");
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadJmaExport(costingId, filename = "costing.jma") {
+  const response = await apiFetch(`/api/costings/${costingId}/export.jma`);
+  if (!response.ok) throw new Error("Failed to export .jma");
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function emailQuote(costingId, to, message) {
+  const response = await apiFetch(`/api/costings/${costingId}/email-quote`, {
+    method: "POST",
+    body: JSON.stringify({ to: to || null, message: message || null }),
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || "Failed to send quote email");
+  }
+}
+
+export async function calcDipChart(payload, incrementMm = 10) {
+  const response = await apiFetch("/api/calc/dip-chart", {
+    method: "POST",
+    body: JSON.stringify({ payload, increment_mm: incrementMm }),
+  });
+  if (!response.ok) throw new Error("Dip chart calculation failed");
+  return response.json();
 }

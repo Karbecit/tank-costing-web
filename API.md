@@ -24,21 +24,82 @@ All endpoints except `/api/health` and `/api/auth/login` require a Bearer token.
 { "email": "admin@local", "password": "ChangeMe123!" }
 ```
 
-Returns `access_token` and user profile. Use header: `Authorization: Bearer <token>`.
+Returns `access_token` and user profile, or `mfa_required` + `mfa_token` when MFA is enabled. Use header: `Authorization: Bearer <token>`.
+
+Optional cookie `tc_trust` skips MFA for non-admin users on trusted devices (90 days).
+
+### POST /api/auth/mfa/verify
+
+Complete login after MFA challenge. Body: `mfa_token`, `code`, optional `trust_device` (non-admin only).
+
+### POST /api/auth/change-password
+
+Body: `current_password`, `new_password` (min 10 chars, upper, lower, digit).
+
+### POST /api/auth/mfa/setup
+
+Start MFA setup — returns `secret` and `otpauth_uri` for authenticator app.
+
+### POST /api/auth/mfa/confirm
+
+Body: `code` — enable MFA after setup.
+
+### POST /api/auth/mfa/disable
+
+Body: `code` — disable MFA.
 
 ### GET /api/auth/me
 
-Current user profile.
+Current user profile (includes `mfa_enabled`).
 
 ### GET /api/admin/users
 
 Admin only — list users.
 
-### POST /api/admin/users
+### GET /api/admin/audit
 
+Admin only — recent audit log entries. Query param: `limit` (default 100).
+
+### POST /api/admin/users
 Admin only — create user (`email`, `display_name`, `password`, `role`: admin|editor|viewer).
 
 Roles: **viewer** (read-only), **editor** (create/edit costings), **admin** (user management).
+
+### POST /api/admin/users/{user_id}/send-invite
+
+Admin only — email account details. Body: `{ "password": "..." }` (password to include in email).
+
+### GET /api/admin/settings/smtp
+
+Admin only — SMTP settings (password masked).
+
+### PUT /api/admin/settings/smtp
+
+Admin only — save SMTP settings.
+
+### POST /api/admin/settings/smtp/test
+
+Admin only — send test email. Body: `{ "to": "user@example.com" }`.
+
+### POST /api/jma/parse
+
+Upload a `.jma` file (multipart `file`) — returns parsed title, quote ref, and payload preview.
+
+### POST /api/jma/import
+
+Editor+ — upload `.jma` file, create costing record (201).
+
+### GET /api/costings/{costing_id}/export.jma
+
+Download legacy `.jma` file for a saved costing.
+
+### POST /api/costings/{costing_id}/email-quote
+
+Email PDF quote to customer (or `to` in body). Requires SMTP configured.
+
+### POST /api/calc/dip-chart
+
+Single-tank dip chart. Body: `payload`, optional `increment_mm` (default 10).
 
 ### GET /api/stats
 

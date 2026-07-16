@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .auth.dependencies import CurrentUser, get_current_user
 from .database import get_connection, init_db
-from .routers import admin, auth, calc, costings, customers
+from .routers import admin, auth, calc, costings, customers, jma
 
 _user = Annotated[CurrentUser, Depends(get_current_user)]
 
@@ -29,6 +29,7 @@ app.include_router(admin.router)
 app.include_router(calc.router)
 app.include_router(customers.router)
 app.include_router(costings.router)
+app.include_router(jma.router)
 
 app.add_middleware(
     CORSMiddleware,

@@ -1,3 +1,4 @@
+import pyotp
 from fastapi.testclient import TestClient
 
 from app.database import init_db
@@ -37,3 +38,54 @@ def test_admin_create_user(client):
     )
     assert r.status_code == 201
     assert r.json()["role"] == "editor"
+
+
+def test_change_password(client):
+    r = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "TestAdmin123!", "new_password": "NewAdmin123!"},
+    )
+    assert r.status_code == 204
+    r = client.post(
+        "/api/auth/login",
+        json={"email": "admin@test.local", "password": "NewAdmin123!"},
+    )
+    assert r.status_code == 200
+    client.post(
+        "/api/auth/change-password",
+        json={"current_password": "NewAdmin123!", "new_password": "TestAdmin123!"},
+    )
+
+
+def test_mfa_login_flow(client):
+    setup = client.post("/api/auth/mfa/setup")
+    assert setup.status_code == 200
+    secret = setup.json()["secret"]
+    code = pyotp.TOTP(secret).now()
+    assert client.post("/api/auth/mfa/confirm", json={"code": code}).status_code == 204
+
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "admin@test.local", "password": "TestAdmin123!"},
+    )
+    assert login.status_code == 200
+    assert login.json().get("mfa_required") is True
+    mfa_token = login.json()["mfa_token"]
+    code = pyotp.TOTP(secret).now()
+    verify = client.post(
+        "/api/auth/mfa/verify",
+        json={"mfa_token": mfa_token, "code": code, "trust_device": False},
+    )
+    assert verify.status_code == 200
+    assert "access_token" in verify.json()
+
+    disable_code = pyotp.TOTP(secret).now()
+    client.post("/api/auth/mfa/disable", json={"code": disable_code})
+
+
+def test_admin_audit_log(client):
+    r = client.get("/api/admin/audit")
+    assert r.status_code == 200
+    entries = r.json()
+    assert isinstance(entries, list)
+    assert any(e["action"] == "user.create" for e in entries)

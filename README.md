@@ -14,6 +14,8 @@ cd "C:\Projects\Tank Costing\tank-costing-web"
 - **API:** http://localhost:8080/api/health
 - **API docs:** http://localhost:8080/docs
 - **Default login (first run):** `admin@local` / `ChangeMe123!` — change via `backend/.env` (see `.env.example`)
+- **Legacy import:** Load `.jma` from Old Program costings folder
+- **Production build:** `.\scripts\build-production.ps1`
 
 ## Prerequisites
 

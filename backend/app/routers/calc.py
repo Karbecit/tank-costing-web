@@ -1,10 +1,12 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
 
-from app.auth.dependencies import CurrentUser, require_role
+from app.auth.dependencies import CurrentUser, get_current_user, require_role
 from app.calc.cones import calculate_cone
 from app.calc.costing import calculate_costing
+from app.calc.dip_chart import calc_single_dip_chart
 from app.calc.strakes import calculate_strake
 from app.models.cone import ConeCalcContext
 from app.schemas.cone import ConeCalcRequest, ConeResultSchema
@@ -15,9 +17,19 @@ from app.schemas.costing import (
     StrakeResultSchema,
     SummaryTotalsSchema,
 )
+from app.services.jma_service import payload_to_models
 
 router = APIRouter(prefix="/api/calc", tags=["calculations"])
+_user = Annotated[CurrentUser, Depends(get_current_user)]
 _editor = Annotated[CurrentUser, Depends(require_role("editor"))]
+
+
+class DipChartRequest(BaseModel):
+    payload: dict
+    increment_mm: int = Field(10, ge=1, le=100)
+    top_cone: int = Field(0, ge=0, le=4)
+    bottom_cone: int = Field(2, ge=0, le=4)
+    invert_cone: int = Field(2, ge=0, le=4)
 
 
 @router.post("/cone", response_model=ConeResultSchema)
@@ -51,4 +63,20 @@ def calc_full_costing(body: CostingCalcRequest, _user: _editor):
         cones=[ConeResultSchema.from_cone(c) for c in result.cones],
         strakes=[StrakeResultSchema.from_strake(s) for s in result.strakes],
         totals=SummaryTotalsSchema.from_totals(result.totals),
+    )
+
+
+@router.post("/dip-chart")
+def calc_dip_chart(body: DipChartRequest, _user: _user):
+    """Single-tank dip chart table (mm from top → litres)."""
+    cones, strakes, summary, rate = payload_to_models(body.payload)
+    result = calculate_costing(cones, strakes, summary, cones_rate_per_hour=rate)
+    return calc_single_dip_chart(
+        result.cones,
+        summary,
+        result.totals,
+        top_cone=body.top_cone,
+        bottom_cone=body.bottom_cone,
+        invert_cone=body.invert_cone,
+        increment=body.increment_mm,
     )

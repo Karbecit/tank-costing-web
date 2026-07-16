@@ -6,6 +6,7 @@ import jwt
 
 ALGORITHM = "HS256"
 ACCESS_HOURS = 8
+MFA_PENDING_MINUTES = 5
 
 
 def _secret() -> str:
@@ -32,4 +33,22 @@ def decode_access_token(token: str) -> dict[str, Any]:
     data = jwt.decode(token, _secret(), algorithms=[ALGORITHM])
     if data.get("typ") != "access":
         raise jwt.InvalidTokenError("Not an access token")
+    return data
+
+
+def create_mfa_pending_token(user_id: int) -> str:
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": str(user_id),
+        "typ": "mfa_pending",
+        "iat": now,
+        "exp": now + timedelta(minutes=MFA_PENDING_MINUTES),
+    }
+    return jwt.encode(payload, _secret(), algorithm=ALGORITHM)
+
+
+def decode_mfa_pending_token(token: str) -> dict[str, Any]:
+    data = jwt.decode(token, _secret(), algorithms=[ALGORITHM])
+    if data.get("typ") != "mfa_pending":
+        raise jwt.InvalidTokenError("Not an MFA pending token")
     return data
