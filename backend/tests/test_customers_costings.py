@@ -1,11 +1,5 @@
-from fastapi.testclient import TestClient
 
-from app.main import app
-
-client = TestClient(app)
-
-
-def test_customer_crud():
+def test_customer_crud(client):
     r = client.post(
         "/api/customers",
         json={"company_name": "Test Brewery Ltd", "contact_name": "Jane", "email": "j@test.com"},
@@ -26,7 +20,7 @@ def test_customer_crud():
     assert r.status_code == 204
 
 
-def test_costing_save_and_load():
+def test_costing_save_and_load(client):
     payload = {
         "version": 1,
         "title": "Test tank",

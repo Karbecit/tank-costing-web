@@ -18,6 +18,56 @@ header {
   padding: 1.25rem 2rem;
 }
 
+.header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  opacity: 0.95;
+}
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.login-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2rem;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.login-card h1 {
+  margin: 0 0 0.25rem;
+  color: var(--primary);
+}
+
+.login-error {
+  color: #b91c1c;
+  font-size: 0.9rem;
+  margin: 0 0 0.5rem;
+}
+
+.full-btn {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
 header h1 {
   margin: 0 0 0.25rem;
   font-size: 1.5rem;
@@ -170,6 +220,80 @@ header h1 {
 .component-list {
   margin: 0 0 1rem;
   padding-left: 1.25rem;
+}
+
+.combobox-field {
+  position: relative;
+}
+
+.combobox {
+  position: relative;
+}
+
+.combobox input {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+
+.combobox-list {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: calc(100% + 2px);
+  margin: 0;
+  padding: 0.25rem 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.combobox-list[hidden] {
+  display: none;
+}
+
+.combobox-option {
+  padding: 0.45rem 0.65rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.combobox-option:hover,
+.combobox-option.selected {
+  background: #eef4fb;
+}
+
+.combobox-create {
+  font-weight: 600;
+  color: var(--primary-light);
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.combobox-muted {
+  color: var(--muted);
+  cursor: default;
+}
+
+.combobox-muted:hover {
+  background: transparent;
+}
+
+.costing-picker-field {
+  grid-column: span 2;
+}
+
+@media (max-width: 640px) {
+  .costing-picker-field {
+    grid-column: span 1;
+  }
 }
 
 .btn-link {

@@ -1,10 +1,14 @@
 from contextlib import asynccontextmanager
+from typing import Annotated
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from .auth.dependencies import CurrentUser, get_current_user
 from .database import get_connection, init_db
-from .routers import calc, costings, customers
+from .routers import admin, auth, calc, costings, customers
+
+_user = Annotated[CurrentUser, Depends(get_current_user)]
 
 
 @asynccontextmanager
@@ -15,11 +19,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Tank Costing API",
-    version="0.1.0",
+    version="0.2.0",
     description="KarBec redevelopment of JMA Tank Costing",
     lifespan=lifespan,
 )
 
+app.include_router(auth.router)
+app.include_router(admin.router)
 app.include_router(calc.router)
 app.include_router(customers.router)
 app.include_router(costings.router)
@@ -38,12 +44,12 @@ app.add_middleware(
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "app": "Tank Costing", "version": "0.1.0"}
+    return {"status": "ok", "app": "Tank Costing", "version": "0.2.0"}
 
 
 @app.get("/api/stats")
-def stats():
-    tables = ["rates", "stock", "clients", "quote_num", "status", "customers", "costings"]
+def stats(_user: _user):
+    tables = ["rates", "stock", "clients", "quote_num", "status", "customers", "costings", "users"]
     with get_connection() as conn:
         counts = {
             table: conn.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()["n"]
@@ -53,7 +59,7 @@ def stats():
 
 
 @app.get("/api/rates")
-def list_rates(limit: int = 50, offset: int = 0, grade: str | None = None):
+def list_rates(_user: _user, limit: int = 50, offset: int = 0, grade: str | None = None):
     query = "SELECT * FROM rates"
     params: list = []
     if grade:
@@ -67,7 +73,7 @@ def list_rates(limit: int = 50, offset: int = 0, grade: str | None = None):
 
 
 @app.get("/api/stock")
-def list_stock(limit: int = 50, offset: int = 0, item_type: str | None = None):
+def list_stock(_user: _user, limit: int = 50, offset: int = 0, item_type: str | None = None):
     query = "SELECT * FROM stock"
     params: list = []
     if item_type:
@@ -81,7 +87,7 @@ def list_stock(limit: int = 50, offset: int = 0, item_type: str | None = None):
 
 
 @app.get("/api/clients")
-def list_clients(limit: int = 50, offset: int = 0):
+def list_clients(_user: _user, limit: int = 50, offset: int = 0):
     with get_connection() as conn:
         rows = conn.execute(
             "SELECT * FROM clients ORDER BY company_name LIMIT ? OFFSET ?",
@@ -91,7 +97,7 @@ def list_clients(limit: int = 50, offset: int = 0):
 
 
 @app.get("/api/quotes")
-def list_quotes(limit: int = 50, offset: int = 0):
+def list_quotes(_user: _user, limit: int = 50, offset: int = 0):
     with get_connection() as conn:
         rows = conn.execute(
             """
@@ -108,7 +114,7 @@ def list_quotes(limit: int = 50, offset: int = 0):
 
 
 @app.get("/api/clients/{client_id}")
-def get_client(client_id: int):
+def get_client(client_id: int, _user: _user):
     with get_connection() as conn:
         row = conn.execute(
             "SELECT * FROM clients WHERE client_id = ?", (client_id,)

@@ -1,16 +1,22 @@
+import { getUser, logout } from "../auth.js";
 import {
   calculateCosting,
   createCustomer,
+  createUser,
   deleteCustomer,
   fetchHealth,
   getCosting,
   getCustomer,
   listCostings,
   listCustomers,
+  listUsers,
+  resetUserPassword,
   saveCosting,
   searchStock,
   updateCustomer,
+  updateUser,
 } from "./api.js";
+import { bindAdminTab, readAdminForm, renderAdminTab } from "./admin.js";
 import {
   bindCustomersTab,
   emptyCustomerForm,
@@ -50,9 +56,24 @@ let customers = [];
 let savedCostings = [];
 let stockItems = [];
 let stockFilter = "";
-let customerSearch = "";
+let customerPickerQuery = "";
+let customerPickerOpen = false;
+let costingPickerQuery = "";
+let costingPickerOpen = false;
+let costingPickerMode = "open";
 let customerTabSearch = "";
 let customerForm = null;
+let adminUsers = [];
+let adminFormOpen = false;
+
+function canEdit() {
+  const role = getUser()?.role;
+  return role === "admin" || role === "editor";
+}
+
+function isAdmin() {
+  return getUser()?.role === "admin";
+}
 
 function syncComponentsPrice() {
   if (!state.selected_components?.length) return;
@@ -119,6 +140,297 @@ function selectInput(label, value, options, opts = {}) {
   </label>`;
 }
 
+function escHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/"/g, "&quot;");
+}
+
+function customerDisplayName() {
+  if (!state.customer_id) return "";
+  const c = customers.find((x) => x.id === state.customer_id);
+  return c?.company_name || "";
+}
+
+function filterCustomers(query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return customers;
+  return customers.filter((c) => {
+    const hay = [c.company_name, c.contact_name, c.email, c.town]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return hay.includes(q);
+  });
+}
+
+function customerComboboxListHtml(query) {
+  const filtered = filterCustomers(query);
+  const create =
+    '<li class="combobox-option combobox-create" data-cust-pick="new">+ Create New Customer</li>';
+  const none = '<li class="combobox-option" data-cust-pick="">— No customer —</li>';
+  const items = filtered
+    .map((c) => {
+      const meta = c.town ? ` · ${escHtml(c.town)}` : "";
+      const selected = c.id === state.customer_id ? " selected" : "";
+      return `<li class="combobox-option${selected}" data-cust-pick="${c.id}">${escHtml(c.company_name)}${meta}</li>`;
+    })
+    .join("");
+  return create + none + items;
+}
+
+function renderCustomerCombobox() {
+  const display = customerPickerOpen ? customerPickerQuery : customerDisplayName();
+  return `<label class="field combobox-field" for="customer-picker-input">
+    <span>Customer</span>
+    <div class="combobox" id="customer-picker">
+      <input id="customer-picker-input" type="text" autocomplete="off"
+        placeholder="Search or select customer…" value="${escHtml(display)}" />
+      <ul id="customer-picker-list" class="combobox-list"${customerPickerOpen ? "" : " hidden"}>
+        ${customerComboboxListHtml(customerPickerOpen ? customerPickerQuery : "")}
+      </ul>
+    </div>
+  </label>`;
+}
+
+function bindCustomerCombobox(root) {
+  const input = root.querySelector("#customer-picker-input");
+  const list = root.querySelector("#customer-picker-list");
+  if (!input || !list) return;
+
+  const pickCustomer = (value) => {
+    if (value === "new") {
+      customerForm = { isNew: true, data: emptyCustomerForm() };
+      activeTab = "customers";
+      customerPickerOpen = false;
+      render();
+      return;
+    }
+    state.customer_id = value ? parseInt(value, 10) : null;
+    customerPickerQuery = "";
+    customerPickerOpen = false;
+    input.value = customerDisplayName();
+    list.hidden = true;
+  };
+
+  const updateList = () => {
+    list.innerHTML = customerComboboxListHtml(customerPickerQuery);
+    list.querySelectorAll("[data-cust-pick]").forEach((li) => {
+      li.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        pickCustomer(li.dataset.custPick);
+      });
+    });
+  };
+
+  input.addEventListener("focus", () => {
+    customerPickerOpen = true;
+    customerPickerQuery = input.value === customerDisplayName() ? "" : input.value;
+    list.hidden = false;
+    updateList();
+  });
+
+  input.addEventListener("input", () => {
+    customerPickerQuery = input.value;
+    customerPickerOpen = true;
+    list.hidden = false;
+    updateList();
+  });
+
+  input.addEventListener("blur", () => {
+    setTimeout(() => {
+      customerPickerOpen = false;
+      customerPickerQuery = "";
+      input.value = customerDisplayName();
+      list.hidden = true;
+    }, 150);
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      customerPickerOpen = false;
+      customerPickerQuery = "";
+      input.value = customerDisplayName();
+      list.hidden = true;
+      input.blur();
+    }
+  });
+
+  updateList();
+}
+
+function costingDisplayName() {
+  if (!state.costing_id && state.title === "Untitled costing") return "";
+  let label = state.title || "Untitled costing";
+  if (state.quote_ref) label += ` [${state.quote_ref}]`;
+  if (state.costing_id) label = `#${state.costing_id} ${label}`;
+  return label;
+}
+
+function filterCostings(query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return savedCostings;
+  return savedCostings.filter((c) => {
+    const hay = [c.title, c.quote_ref, c.customer_name, String(c.id)]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return hay.includes(q);
+  });
+}
+
+function costingComboboxListHtml(query) {
+  const filtered = filterCostings(query);
+  const createNew =
+    '<li class="combobox-option combobox-create" data-cost-pick="new">+ Create New</li>';
+  const createCopy =
+    '<li class="combobox-option combobox-create" data-cost-pick="copy">+ Create New from Existing</li>';
+  const items = filtered
+    .map((c) => {
+      const meta = [
+        c.quote_ref ? `[${escHtml(c.quote_ref)}]` : "",
+        c.customer_name ? escHtml(c.customer_name) : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      const suffix = meta ? ` · ${meta}` : "";
+      const selected = c.id === state.costing_id ? " selected" : "";
+      return `<li class="combobox-option${selected}" data-cost-pick="${c.id}">#${c.id} ${escHtml(c.title)}${suffix}</li>`;
+    })
+    .join("");
+  const empty =
+    filtered.length === 0 && query
+      ? '<li class="combobox-option combobox-muted">No matching costings</li>'
+      : "";
+  return createNew + createCopy + items + empty;
+}
+
+function renderCostingCombobox() {
+  const display = costingPickerOpen ? costingPickerQuery : costingDisplayName();
+  const placeholder =
+    costingPickerMode === "copy"
+      ? "Select a costing to copy…"
+      : "Open existing or create new…";
+  return `<label class="field combobox-field costing-picker-field" for="costing-picker-input">
+    <span>Open existing or create new</span>
+    <div class="combobox" id="costing-picker">
+      <input id="costing-picker-input" type="text" autocomplete="off"
+        placeholder="${placeholder}" value="${escHtml(display)}" />
+      <ul id="costing-picker-list" class="combobox-list"${costingPickerOpen ? "" : " hidden"}>
+        ${costingComboboxListHtml(costingPickerOpen ? costingPickerQuery : "")}
+      </ul>
+    </div>
+  </label>`;
+}
+
+function bindCostingCombobox(root) {
+  const input = root.querySelector("#costing-picker-input");
+  const list = root.querySelector("#costing-picker-list");
+  if (!input || !list) return;
+
+  const pickCosting = async (value) => {
+    if (value === "new") {
+      state = defaultCosting();
+      costingPickerMode = "open";
+      costingPickerQuery = "";
+      costingPickerOpen = false;
+      statusMessage = "New costing started.";
+      input.value = costingDisplayName();
+      list.hidden = true;
+      render();
+      return;
+    }
+    if (value === "copy") {
+      costingPickerMode = "copy";
+      costingPickerQuery = "";
+      input.value = "";
+      input.placeholder = "Select a costing to copy…";
+      list.hidden = false;
+      updateList();
+      statusMessage = "Select a costing to copy as new.";
+      return;
+    }
+    const id = parseInt(value, 10);
+    if (!id) return;
+    const asCopy = costingPickerMode === "copy";
+    costingPickerMode = "open";
+    costingPickerOpen = false;
+    costingPickerQuery = "";
+    list.hidden = true;
+    statusMessage = asCopy ? "Copying…" : "Loading…";
+    render();
+    try {
+      const row = await getCosting(id);
+      state = {
+        ...parseCosting(row.payload),
+        costing_id: asCopy ? null : row.id,
+        customer_id: row.customer_id,
+        title: asCopy ? `${row.title} (copy)` : row.title,
+        quote_ref: asCopy ? "" : row.quote_ref || "",
+        results: null,
+      };
+      syncComponentsPrice();
+      statusMessage = asCopy
+        ? `Copied from costing #${id} — save to create new record.`
+        : `Loaded costing #${id}.`;
+    } catch (err) {
+      statusMessage = `Load failed: ${err.message}`;
+    }
+    render();
+  };
+
+  const updateList = () => {
+    list.innerHTML = costingComboboxListHtml(costingPickerQuery);
+    list.querySelectorAll("[data-cost-pick]").forEach((li) => {
+      if (li.dataset.costPick === "" || li.classList.contains("combobox-muted")) return;
+      li.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        pickCosting(li.dataset.costPick);
+      });
+    });
+  };
+
+  input.addEventListener("focus", () => {
+    costingPickerOpen = true;
+    costingPickerQuery = input.value === costingDisplayName() ? "" : input.value;
+    list.hidden = false;
+    updateList();
+  });
+
+  input.addEventListener("input", () => {
+    costingPickerQuery = input.value;
+    costingPickerOpen = true;
+    list.hidden = false;
+    updateList();
+  });
+
+  input.addEventListener("blur", () => {
+    setTimeout(() => {
+      costingPickerOpen = false;
+      costingPickerQuery = "";
+      costingPickerMode = "open";
+      input.value = costingDisplayName();
+      input.placeholder = "Open existing or create new…";
+      list.hidden = true;
+    }, 150);
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      costingPickerMode = "open";
+      costingPickerOpen = false;
+      costingPickerQuery = "";
+      input.value = costingDisplayName();
+      input.placeholder = "Open existing or create new…";
+      list.hidden = true;
+      input.blur();
+    }
+  });
+
+  updateList();
+}
+
 function checkboxInput(label, checked, opts = {}) {
   const id = opts.id || label.replace(/\W+/g, "-").toLowerCase();
   return `<label class="field checkbox" for="${id}">
@@ -139,24 +451,15 @@ function bind(root) {
   root.querySelector("#btn-save")?.addEventListener("click", saveJson);
   root.querySelector("#btn-save-server")?.addEventListener("click", saveToServer);
   root.querySelector("#btn-load")?.addEventListener("click", () => root.querySelector("#file-load")?.click());
-  root.querySelector("#btn-load-server")?.addEventListener("change", loadFromServer);
   root.querySelector("#btn-refresh-saved")?.addEventListener("click", async () => {
     await refreshSavedList();
     render();
-  });
-  root.querySelector("#btn-add-customer")?.addEventListener("click", () => {
-    customerForm = { isNew: true, data: emptyCustomerForm() };
-    activeTab = "customers";
-    render();
-  });
-  root.querySelector("#btn-cust-summary-search")?.addEventListener("click", searchSummaryCustomers);
-  root.querySelector("#summary-cust-search")?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") searchSummaryCustomers();
   });
   root.querySelector("#btn-search-stock")?.addEventListener("click", loadStock);
   root.querySelector("#stock-filter")?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") loadStock();
   });
+  root.querySelector("#btn-logout")?.addEventListener("click", logout);
   root.querySelector("#btn-new")?.addEventListener("click", () => {
     if (confirm("Start a new costing? Unsaved changes will be lost.")) {
       state = defaultCosting();
@@ -230,6 +533,54 @@ function bind(root) {
       },
     });
   }
+  if (activeTab === "admin" && isAdmin()) {
+    bindAdminTab(root, {
+      onNew: () => {
+        adminFormOpen = true;
+        render();
+      },
+      onCancel: () => {
+        adminFormOpen = false;
+        render();
+      },
+      onSave: async () => {
+        const data = readAdminForm(root);
+        try {
+          await createUser(data);
+          adminFormOpen = false;
+          adminUsers = await listUsers();
+          statusMessage = `User ${data.email} created.`;
+          render();
+        } catch (err) {
+          statusMessage = `Error: ${err.message}`;
+          render();
+        }
+      },
+      onToggle: async (id, active) => {
+        try {
+          await updateUser(id, { is_active: !active });
+          adminUsers = await listUsers();
+          statusMessage = "User updated.";
+          render();
+        } catch (err) {
+          statusMessage = `Error: ${err.message}`;
+          render();
+        }
+      },
+      onReset: async (id) => {
+        const pwd = prompt("New password (min 10 chars, upper, lower, digit):");
+        if (!pwd) return;
+        try {
+          await resetUserPassword(id, pwd);
+          statusMessage = "Password reset.";
+          render();
+        } catch (err) {
+          statusMessage = `Error: ${err.message}`;
+          render();
+        }
+      },
+    });
+  }
 }
 
 function bindComponents(root) {
@@ -280,10 +631,8 @@ function bindSummary(root) {
   set("summary-lab-misc-hrs", (el) => { s.lab_misc_hrs = parseFloat(el.value) || 0; });
   set("summary-lab-misc-rate", (el) => { s.lab_misc_rate = parseFloat(el.value) || 0; });
   set("cones-rate", (el) => { state.cones_rate_per_hour = parseFloat(el.value) || 0; });
-  const custEl = root.querySelector("#summary-customer");
-  custEl?.addEventListener("change", () => {
-    state.customer_id = custEl.value ? parseInt(custEl.value, 10) : null;
-  });
+  bindCostingCombobox(root);
+  bindCustomerCombobox(root);
 }
 
 function bindCones(root) {
@@ -417,50 +766,12 @@ async function saveToServer() {
   render();
 }
 
-async function loadFromServer(event) {
-  const id = parseInt(event.target.value, 10);
-  if (!id) return;
-  statusMessage = "Loading…";
-  render();
-  try {
-    const row = await getCosting(id);
-    state = {
-      ...parseCosting(row.payload),
-      costing_id: row.id,
-      customer_id: row.customer_id,
-      title: row.title,
-      quote_ref: row.quote_ref || "",
-      results: null,
-    };
-    syncComponentsPrice();
-    statusMessage = `Loaded costing #${id}.`;
-  } catch (err) {
-    statusMessage = `Load failed: ${err.message}`;
-  }
-  render();
-}
-
 async function refreshSavedList() {
   try {
     savedCostings = await listCostings();
-    customers = await listCustomers(customerSearch);
+    customers = await listCustomers();
   } catch {
     /* ignore */
-  }
-}
-
-async function searchSummaryCustomers() {
-  const input = document.getElementById("summary-cust-search");
-  customerSearch = input?.value?.trim() || "";
-  try {
-    customers = await listCustomers(customerSearch);
-    statusMessage = customerSearch
-      ? `Found ${customers.length} customer(s).`
-      : "Showing all customers.";
-    render();
-  } catch (err) {
-    statusMessage = `Search failed: ${err.message}`;
-    render();
   }
 }
 
@@ -493,7 +804,7 @@ async function saveCustomerForm(data) {
     }
     customerForm = null;
     customerTabSearch = "";
-    customers = await listCustomers(customerSearch);
+    customers = await listCustomers();
     render();
   } catch (err) {
     statusMessage = `Error: ${err.message}`;
@@ -534,36 +845,18 @@ function loadJsonFile(event) {
 
 function renderSummary() {
   const s = state.summary;
-  const custOpts = [{ value: "", label: "— No customer —" }].concat(
-    customers.map((c) => ({ value: String(c.id), label: c.company_name }))
-  );
-  const savedOpts = [{ value: "", label: "— Load saved costing —" }].concat(
-    savedCostings.map((c) => ({
-      value: String(c.id),
-      label: `#${c.id} ${c.title}${c.quote_ref ? ` [${c.quote_ref}]` : ""}${c.customer_name ? ` (${c.customer_name})` : ""}`,
-    }))
-  );
   return `<section class="panel">
     <h2>Tank summary</h2>
     <div class="field-grid">
-      ${textInput("Job title", state.title, { id: "summary-title" })}
-      ${textInput("Quote / job ref", state.quote_ref, { id: "summary-quote-ref" })}
-      ${textInput("Search customers", customerSearch, { id: "summary-cust-search" })}
-      <label class="field">
-        <span>&nbsp;</span>
-        <button type="button" id="btn-cust-summary-search" class="btn secondary">Search</button>
-      </label>
-      ${selectInput("Customer", state.customer_id ? String(state.customer_id) : "", custOpts, { id: "summary-customer" })}
-      <label class="field">
-        <span>&nbsp;</span>
-        <button type="button" id="btn-add-customer" class="btn secondary">+ New customer</button>
-      </label>
-      ${selectInput("Open saved", "", savedOpts, { id: "btn-load-server" })}
+      ${renderCostingCombobox()}
       <label class="field">
         <span>&nbsp;</span>
         <button type="button" id="btn-refresh-saved" class="btn secondary">Refresh list</button>
       </label>
       ${state.costing_id ? `<p class="hint full-width">Server id: ${state.costing_id}</p>` : ""}
+      ${textInput("Job title", state.title, { id: "summary-title" })}
+      ${textInput("Quote / job ref", state.quote_ref, { id: "summary-quote-ref" })}
+      ${renderCustomerCombobox()}
       ${numInput("Tank diameter (mm)", s.diam, null, { id: "summary-diam", min: 0 })}
       ${numInput("Expansion diam (mm)", s.expan_diam, null, { id: "summary-expan-diam" })}
       ${numInput("Expansion height (mm)", s.expan_height, null, { id: "summary-expan-height" })}
@@ -742,6 +1035,7 @@ function renderTabs() {
     ["customers", "Customers"],
     ["totals", "Totals"],
   ];
+  if (isAdmin()) tabs.push(["admin", "Admin"]);
   return tabs
     .map(([id, label]) =>
       `<button type="button" class="tab${activeTab === id ? " active" : ""}" data-tab="${id}">${label}</button>`
@@ -760,27 +1054,39 @@ function renderPanel() {
         search: customerTabSearch,
         form: customerForm,
       });
+    case "admin":
+      return isAdmin() ? renderAdminTab(adminUsers, adminFormOpen) : renderSummary();
     case "totals": return renderTotals();
     default: return renderSummary();
   }
 }
 
 function render() {
+  const user = getUser();
+  const edit = canEdit();
   const root = document.getElementById("app");
   root.innerHTML = `
     <header>
-      <h1>Tank Costing</h1>
-      <p class="subtitle">${state.title || "Untitled"}${state.quote_ref ? ` · ${state.quote_ref}` : ""}</p>
+      <div class="header-row">
+        <div>
+          <h1>Tank Costing</h1>
+          <p class="subtitle">${state.title || "Untitled"}${state.quote_ref ? ` · ${state.quote_ref}` : ""}</p>
+        </div>
+        <div class="header-user">
+          <span>${user?.display_name || user?.email || ""}</span>
+          <button type="button" id="btn-logout" class="btn secondary btn-sm">Sign out</button>
+        </div>
+      </div>
     </header>
     <div class="toolbar">
       <div class="tabs">${renderTabs()}</div>
       <div class="actions">
-        <button type="button" id="btn-new" class="btn secondary">New</button>
+        ${edit ? `<button type="button" id="btn-new" class="btn secondary">New</button>
         <button type="button" id="btn-load" class="btn secondary">Load JSON</button>
         <input type="file" id="file-load" accept=".json,application/json" hidden />
         <button type="button" id="btn-save" class="btn secondary">Save JSON</button>
         <button type="button" id="btn-save-server" class="btn secondary">Save to server</button>
-        <button type="button" id="btn-calculate" class="btn primary">Calculate</button>
+        <button type="button" id="btn-calculate" class="btn primary">Calculate</button>` : `<span class="hint">Read-only access</span>`}
       </div>
     </div>
     ${statusMessage ? `<p class="status">${statusMessage}</p>` : ""}
@@ -794,6 +1100,13 @@ export async function initCostingApp() {
     const health = await fetchHealth();
     statusMessage = `${health.app} v${health.version} — ready`;
     await refreshSavedList();
+    if (isAdmin()) {
+      try {
+        adminUsers = await listUsers();
+      } catch {
+        adminUsers = [];
+      }
+    }
   } catch {
     statusMessage = "API not reachable — start the backend on port 8080";
   }

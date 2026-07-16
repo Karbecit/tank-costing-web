@@ -21,17 +21,17 @@
 - [x] Company name via UI (+ New customer on Summary)
 - [x] Full customer form (contact, addresses, notes)
 - [x] Optional quote number / job reference on costing
-- [x] Customer search on Summary screen
+- [x] Customer search on Summary screen (searchable combobox)
 - [x] Attach customer to saved costing
 
 ## Stage 5 — Users, security & admin
 
-- [ ] User accounts (login, password policy, session/JWT)
-- [ ] Roles: admin, editor (quote), read-only
+- [x] User accounts (login, password policy, session/JWT)
+- [x] Roles: admin, editor (quote), read-only
 - [ ] MFA: admin every login; users MFA on first login per device + trusted device option
-- [ ] Admin portal — user management (create, disable, reset password)
+- [x] Admin portal — user management (create, disable, reset password)
 - [ ] Admin settings (SMTP and app config — not in Git)
-- [ ] Audit log for admin actions (recommended)
+- [x] Audit log for admin actions (recommended)
 
 ## Stage 6 — Email (SMTP)
 

@@ -13,6 +13,7 @@ cd "C:\Projects\Tank Costing\tank-costing-web"
 - **Frontend:** http://localhost:5173
 - **API:** http://localhost:8080/api/health
 - **API docs:** http://localhost:8080/docs
+- **Default login (first run):** `admin@local` / `ChangeMe123!` — change via `backend/.env` (see `.env.example`)
 
 ## Prerequisites
 

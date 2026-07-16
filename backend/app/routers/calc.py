@@ -1,5 +1,8 @@
-from fastapi import APIRouter
+from typing import Annotated
 
+from fastapi import APIRouter, Depends
+
+from app.auth.dependencies import CurrentUser, require_role
 from app.calc.cones import calculate_cone
 from app.calc.costing import calculate_costing
 from app.calc.strakes import calculate_strake
@@ -14,10 +17,11 @@ from app.schemas.costing import (
 )
 
 router = APIRouter(prefix="/api/calc", tags=["calculations"])
+_editor = Annotated[CurrentUser, Depends(require_role("editor"))]
 
 
 @router.post("/cone", response_model=ConeResultSchema)
-def calc_cone(body: ConeCalcRequest):
+def calc_cone(body: ConeCalcRequest, _user: _editor):
     """Calculate cone geometry, volume, and steel from input dimensions."""
     ctx = ConeCalcContext(
         tank_diam=body.tank_diam,
@@ -28,14 +32,14 @@ def calc_cone(body: ConeCalcRequest):
 
 
 @router.post("/strake", response_model=StrakeResultSchema)
-def calc_strake(body: StrakeCalcRequest):
+def calc_strake(body: StrakeCalcRequest, _user: _editor):
     """Calculate strake volume and steel from input dimensions."""
     result = calculate_strake(body.strake.to_strake(), body.tank_diam)
     return StrakeResultSchema.from_strake(result)
 
 
 @router.post("/costing", response_model=CostingCalcResponse)
-def calc_full_costing(body: CostingCalcRequest):
+def calc_full_costing(body: CostingCalcRequest, _user: _editor):
     """Calculate all cones, strakes, and summary totals for a tank costing."""
     result = calculate_costing(
         [c.to_cone() for c in body.cones],

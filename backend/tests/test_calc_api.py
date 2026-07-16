@@ -1,14 +1,9 @@
 """API tests for cone calculation endpoint."""
 
 import pytest
-from fastapi.testclient import TestClient
-
-from app.main import app
-
-client = TestClient(app)
 
 
-def test_calc_cone_pettavel_top():
+def test_calc_cone_pettavel_top(client):
     response = client.post(
         "/api/calc/cone",
         json={

@@ -11,8 +11,34 @@ Interactive docs: `http://127.0.0.1:8080/docs`
 Health check.
 
 ```json
-{ "status": "ok", "app": "Tank Costing", "version": "0.1.0" }
+{ "status": "ok", "app": "Tank Costing", "version": "0.2.0" }
 ```
+
+## Authentication
+
+All endpoints except `/api/health` and `/api/auth/login` require a Bearer token.
+
+### POST /api/auth/login
+
+```json
+{ "email": "admin@local", "password": "ChangeMe123!" }
+```
+
+Returns `access_token` and user profile. Use header: `Authorization: Bearer <token>`.
+
+### GET /api/auth/me
+
+Current user profile.
+
+### GET /api/admin/users
+
+Admin only — list users.
+
+### POST /api/admin/users
+
+Admin only — create user (`email`, `display_name`, `password`, `role`: admin|editor|viewer).
+
+Roles: **viewer** (read-only), **editor** (create/edit costings), **admin** (user management).
 
 ### GET /api/stats
 

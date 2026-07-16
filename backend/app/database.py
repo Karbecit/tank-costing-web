@@ -83,8 +83,11 @@ def get_connection() -> sqlite3.Connection:
 
 def init_db() -> None:
     from .repositories.costing_store import init_extended_schema
+    from .repositories.user_store import bootstrap_admin, init_auth_schema
 
     with get_connection() as conn:
         conn.executescript(SCHEMA)
         init_extended_schema(conn)
+        init_auth_schema(conn)
         conn.commit()
+    bootstrap_admin()
