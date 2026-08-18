@@ -69,6 +69,12 @@ def _as_float(value: object) -> float:
         return float(value)
     if value == "" or value is None:
         return 0.0
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except ValueError:
+            # v9 .jma files store address/contact text in early summary slots
+            return 0.0
     return float(value)  # type: ignore[arg-type]
 
 

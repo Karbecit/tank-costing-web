@@ -12,6 +12,10 @@ LEGACY_JMA = (
     / "Costings"
     / "Sheet19.jma"
 )
+LADBROKE_JMA = (
+    Path(__file__).resolve().parents[3]
+    / "Ladbroke Grove Wines 35kl storage tank 3050diam 4800wall 316 stst 14-7-09.jma"
+)
 
 
 def _sample_payload():
@@ -45,6 +49,36 @@ def _sample_payload():
         + [{}] * 4,
         "strakes": [{"used": 1, "thick": 2, "width": 1500, "price_kg": 5.8}] + [{}] * 7,
     }
+
+
+@pytest.mark.skipif(not LADBROKE_JMA.exists(), reason="Ladbroke Grove QA .jma not available")
+def test_ladbroke_jma_import_payload():
+    payload = jma_file_to_payload(LADBROKE_JMA)
+    assert payload["company_name"] == "Ladbroke Grove Wines"
+    assert payload["summary"]["diam"] == 3050
+    assert payload["summary"]["num_tanks"] == 6
+    assert payload["summary"]["price_quoted"] == 18850
+    assert payload["summary"]["components_price"] == 2654
+    assert payload["cones"][0]["offset_select"]
+    assert payload["cones"][3]["slope_select"]
+
+
+@pytest.mark.skipif(not LADBROKE_JMA.exists(), reason="Ladbroke Grove QA .jma not available")
+def test_ladbroke_jma_calculate_totals():
+    from app.calc.costing import calculate_costing
+    from app.jma.reader import load_jma_full
+    from tests.test_strakes_summary import _input_cone, _input_strake
+
+    cones, strakes, summary, stored = load_jma_full(LADBROKE_JMA)
+    result = calculate_costing(
+        [_input_cone(c) for c in cones],
+        [_input_strake(s) for s in strakes],
+        summary,
+    )
+    t = result.totals
+    assert t.total_vol == pytest.approx(stored.total_vol, rel=1e-3)
+    assert t.steel_total == pytest.approx(stored.steel_total, rel=1e-3)
+    assert t.single_tank_less_gst == pytest.approx(21829.02, rel=1e-3)
 
 
 @pytest.mark.skipif(not LEGACY_JMA.exists(), reason="Legacy .jma sample not available")

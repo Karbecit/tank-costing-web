@@ -45,6 +45,7 @@ tank-costing-web/
 | [API.md](API.md) | REST endpoints |
 | [AGENTS.md](AGENTS.md) | AI development rules |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | Deploy pipeline (future stages) |
+| [UI_PARITY.md](UI_PARITY.md) | v9 vs web parity (`App screen shots.docx`, `Website pages.docx`, Ladbroke `.jma`) |
 
 ## Switching computers
 
